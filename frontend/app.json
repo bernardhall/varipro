@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "VariPro",
+    "slug": "varipro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A2F50"
+    },
+      "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.varipro.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "VariPro needs camera access to take site photos for quotes.",
+        "NSPhotoLibraryUsageDescription": "VariPro needs photo library access to attach site photos to quotes.",
+        "NSFaceIDUsageDescription": "VariPro uses Face ID for fast, secure login."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1A2F50"
+      },
+      "package": "com.varipro.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VariPro needs access to your photos to attach site images to quotes.",
+          "cameraPermission": "VariPro needs camera access to take site photos for quotes."
+        }
+      ],
+      "expo-local-authentication"
+    ]
+  }
+}

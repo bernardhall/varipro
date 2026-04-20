@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: varipro-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
