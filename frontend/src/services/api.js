@@ -1,10 +1,10 @@
 import axios from 'axios';
 import storage from '../utils/storage';
 
-const BASE_URL = 'http://192.168.0.22:3001'; 
+const BASE_URL = 'https://varipro-backend.onrender.com'; 
 // When live on Render: const BASE_URL = 'https://varipro-backend.onrender.com';
 
-const api = axios.create({ baseURL: BASE_URL, timeout: 10000 });
+const api = axios.create({ baseURL: BASE_URL, timeout: 60000 });
 
 // Attach JWT to every request
 api.interceptors.request.use(async (config) => {

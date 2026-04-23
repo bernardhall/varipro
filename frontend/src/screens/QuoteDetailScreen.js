@@ -15,7 +15,7 @@ export default function QuoteDetailScreen({ route, navigation }) {
     getQuote(quoteId).then(setQuote).catch(console.error).finally(() => setLoading(false));
   }, [quoteId]);
 
-  const BASE_URL = 'http://192.168.0.22:3001';
+  const BASE_URL = 'https://varipro-backend.onrender.com';
 
   const changeStatus = async (status) => {
     await updateQuote(quoteId, { status });

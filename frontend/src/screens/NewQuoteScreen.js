@@ -4,6 +4,7 @@ import {
   StyleSheet, Alert, Image, FlatList,
   KeyboardAvoidingView, Platform, TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { createQuote, updateQuote, createClient, getClients, uploadPhotos, getAccountSettings } from '../services/api';
 import { Button, Input, Card, SectionHeader } from '../components/UI';
@@ -45,7 +46,7 @@ export default function NewQuoteScreen({ navigation, route }) {
         if (editingQuote.equipment?.length) setEquipment(editingQuote.equipment.map(e => ({ ...e, duration_days: e.duration_days.toString(), daily_rate: e.daily_rate.toString() })));
         if (editingQuote.sundry?.length) setSundry(editingQuote.sundry.map(s => ({ ...s, flat_amount: s.flat_amount.toString() })));
         if (editingQuote.higher_costs?.length) setHigherCosts(editingQuote.higher_costs.map(h => ({ ...h, amount: h.amount.toString() })));
-        if (editingQuote.photos?.length) setPhotos(editingQuote.photos.map(p => ({ uri: `http://192.168.0.22:3001${p.image_uri}`, isExisting: true })));
+        if (editingQuote.photos?.length) setPhotos(editingQuote.photos.map(p => ({ uri: `https://varipro-backend.onrender.com${p.image_uri}`, isExisting: true })));
       }
     })();
   }, []);
@@ -175,7 +176,8 @@ export default function NewQuoteScreen({ navigation, route }) {
   const stepTitles = ['Job & Client', 'Site Photos', 'Tasks & Summary', 'Line Items', 'Review & Send'];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => step > 1 ? setStep(step - 1) : navigation.goBack()}>
           <Text style={styles.backBtn}>‹ {step > 1 ? 'Back' : 'Cancel'}</Text>
@@ -405,7 +407,7 @@ export default function NewQuoteScreen({ navigation, route }) {
                 <Text style={{ fontSize: 22, fontWeight: '800', color: colors.primary }}>{fmt(grandTotal)}</Text>
               </View>
             </Card>
-            <Button title={isEditing ? '💾 Update Quote' : '✅ Create Quote'} onPress={() => handleSave(false)} loading={saving} style={{ marginBottom: spacing.sm }} />
+            <Button title={isEditing ? '💾 Update Quote' : '✅ Create Quote'} onPress={() => handleSave(false)} loading={saving} variant="secondary" style={{ marginBottom: spacing.sm }} />
             {!isEditing && <Button title="💾 Save as Draft" onPress={() => handleSave(true)} variant="outline" />}
           </>
         )}
@@ -413,11 +415,16 @@ export default function NewQuoteScreen({ navigation, route }) {
 
       {/* Navigation footer */}
       {step < 5 && (
-        <View style={styles.footer}>
-          <Button title={step === TOTAL_STEPS - 1 ? 'Review →' : 'Next →'} onPress={() => setStep(step + 1)} style={{ flex: 1 }} />
+        <View style={[styles.footer, Platform.OS === 'ios' && { paddingBottom: 40 }]}>
+          <Button 
+            title={step === TOTAL_STEPS - 1 ? 'Review →' : 'Next →'} 
+            onPress={() => setStep(step + 1)} 
+            variant="secondary" 
+          />
         </View>
       )}
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -452,5 +459,5 @@ const styles = StyleSheet.create({
   clientRowSelected: { borderColor: colors.success, backgroundColor: '#F0FFF4' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   grandTotalRow: { borderBottomWidth: 0, paddingTop: spacing.md, marginTop: spacing.sm },
-  footer: { padding: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  footer: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
 });

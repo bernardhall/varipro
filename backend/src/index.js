@@ -35,8 +35,26 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VariPro API running on port ${PORT}`);
-});
+const { initSchema } = require('./db/database');
+
+const startServer = async () => {
+  try {
+    // Initialize DB schema (async for Postgres)
+    if (process.env.DATABASE_URL) {
+      console.log('Connecting to PostgreSQL...');
+      await initSchema();
+      console.log('PostgreSQL schema initialized.');
+    }
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`VariPro API running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Critical Failure: Could not start server', err);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = app;

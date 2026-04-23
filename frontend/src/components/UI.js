@@ -9,6 +9,7 @@ import { colors, spacing, radius, typography, shadow } from '../utils/theme';
 export function Button({ title, onPress, variant = 'primary', loading, disabled, style }) {
   const styles = buttonStyles;
   const bgColor = variant === 'primary' ? colors.primary
+    : variant === 'secondary' ? colors.secondary
     : variant === 'danger' ? colors.danger
     : variant === 'outline' ? 'transparent'
     : '#EDF2F7';
@@ -22,7 +23,7 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
     >
       {loading
         ? <ActivityIndicator color={variant === 'outline' ? colors.primary : '#fff'} />
-        : <Text style={[styles.text, { color: variant === 'outline' ? colors.primary : variant === 'secondary' ? colors.text : '#fff' }]}>{title}</Text>
+        : <Text style={[styles.text, { color: (variant === 'outline') ? colors.primary : (variant === 'secondary' || variant === 'primary' || variant === 'danger' ? '#fff' : colors.text) }]}>{title}</Text>
       }
     </TouchableOpacity>
   );
