@@ -1,13 +1,22 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
+const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Required for Render Postgres
-  }
-});
+};
+
+// Only add SSL if we have a connection string (prevents local crashes)
+if (process.env.DATABASE_URL) {
+  poolConfig.ssl = { rejectUnauthorized: false };
+} else {
+  console.warn('⚠️ WARNING: DATABASE_URL not found. Connection may fail.');
+}
+
+const pool = new Pool(poolConfig);
 
 async function query(text, params) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not defined.');
+  }
   const start = Date.now();
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
