@@ -52,11 +52,20 @@ async function initSchema() {
       created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Migration: Add pin_hash if it doesn't exist
+    -- Migration: Add missing columns if they don't exist
     DO $$ 
     BEGIN 
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='pin_hash') THEN
         ALTER TABLE users ADD COLUMN pin_hash TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_confirmed') THEN
+        ALTER TABLE users ADD COLUMN is_confirmed INTEGER DEFAULT 0;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='confirmation_token') THEN
+        ALTER TABLE users ADD COLUMN confirmation_token TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='confirmation_expires') THEN
+        ALTER TABLE users ADD COLUMN confirmation_expires TIMESTAMP;
       END IF;
     END $$;
 
