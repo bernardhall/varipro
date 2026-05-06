@@ -43,6 +43,7 @@ async function initSchema() {
       login_name              TEXT UNIQUE NOT NULL,
       email                   TEXT NOT NULL,
       password_hash           TEXT NOT NULL,
+      pin_hash                TEXT,
       is_admin                INTEGER DEFAULT 0,
       is_confirmed            INTEGER DEFAULT 0,
       confirmation_token      TEXT,
@@ -50,6 +51,14 @@ async function initSchema() {
       last_login              TIMESTAMP,
       created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Migration: Add pin_hash if it doesn't exist
+    DO $$ 
+    BEGIN 
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='pin_hash') THEN
+        ALTER TABLE users ADD COLUMN pin_hash TEXT;
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_id    TEXT PRIMARY KEY,
