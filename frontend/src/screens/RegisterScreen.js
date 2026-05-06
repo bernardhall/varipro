@@ -168,28 +168,40 @@ export default function RegisterScreen({ navigation }) {
               onPress={() => { setEnableBiometric(true); handleRegister(); }}
               disabled={!biometricAvailable}
               style={{ marginBottom: spacing.sm }}
+              loading={loading && enableBiometric}
             />
-            <Button title="Not Now – Continue" onPress={handleRegister} variant="outline" loading={loading} />
+            <Button title="Not Now – Continue" onPress={handleRegister} variant="outline" loading={loading && !enableBiometric} style={{ marginBottom: spacing.md }} />
+            
+            <TouchableOpacity onPress={() => setStep(2)} style={{ alignItems: 'center', padding: spacing.sm }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 14 }}>← Go back to edit details</Text>
+            </TouchableOpacity>
           </Card>
         )}
 
-        {/* Step 4: Success */}
+        {/* Step 4: Success - Check Email */}
         {step === 4 && (
           <View style={{ alignItems: 'center', paddingTop: spacing.xxl }}>
-            <Text style={{ fontSize: 64, marginBottom: spacing.md }}>🎉</Text>
-            <Text style={[typography.h1, { textAlign: 'center', marginBottom: spacing.sm }]}>Account Created!</Text>
+            <Text style={{ fontSize: 64, marginBottom: spacing.md }}>📧</Text>
+            <Text style={[typography.h1, { textAlign: 'center', marginBottom: spacing.sm }]}>Verify Your Email</Text>
             <Text style={[typography.body, { color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.xl }]}>
-              Here is your Account Number. Save it — you'll need it to log in.
+              We've sent a confirmation link to <Text style={{ fontWeight: '700', color: colors.text }}>{form.email}</Text>. Please click the link to activate your account.
             </Text>
-            <Card style={{ width: '100%', alignItems: 'center' }}>
-              <Text style={{ ...typography.label, marginBottom: spacing.xs }}>Your Account Number</Text>
+            
+            <Card style={{ width: '100%', alignItems: 'center', marginBottom: spacing.xl }}>
+              <Text style={{ ...typography.label, marginBottom: spacing.xs, color: colors.textSecondary }}>Your Account Number</Text>
               <Text style={{ fontSize: 28, fontWeight: '800', color: colors.primary, letterSpacing: 2 }}>
                 {generatedAccountNumber}
               </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: spacing.sm, textAlign: 'center' }}>
+                Save this! You'll need it along with your Login Name to sign in.
+              </Text>
             </Card>
-            <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: spacing.xl }}>
-              You are now logged in. Logging you into the app…
-            </Text>
+            
+            <Button 
+              title="Got it - Go to Login" 
+              onPress={() => navigation.navigate('Login')} 
+              style={{ width: '100%' }}
+            />
           </View>
         )}
 

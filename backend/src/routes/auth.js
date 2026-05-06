@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { query, pool } = require('../db/database');
 const { JWT_SECRET } = require('../middleware/auth');
+const { sendConfirmationEmail } = require('../services/email');
 
 const SALT_ROUNDS = 10;
 const LOCKOUT_ATTEMPTS = 3;
@@ -46,41 +47,95 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'All user fields required' });
     }
 
-    const existingUser = await client.query('SELECT 1 FROM users WHERE login_name = $1', [login_name]);
-    if (existingUser.rowCount > 0) return res.status(409).json({ error: 'Login name already taken' });
+    const existingUser = await client.query('SELECT 1 FROM users WHERE login_name = $1 OR email = $2', [login_name, email]);
+    if (existingUser.rowCount > 0) return res.status(409).json({ error: 'Login name or email already taken' });
 
     const account_id = uuidv4();
     const user_id = uuidv4();
     const account_number = await generateUniqueAccountNumber();
     const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
     const pin_hash = pin ? await bcrypt.hash(pin, SALT_ROUNDS) : null;
+    
+    // Confirmation setup
+    const confirmation_token = uuidv4();
+    const confirmation_expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await client.query('BEGIN');
     await client.query('INSERT INTO accounts (account_id, account_number, account_name) VALUES ($1, $2, $3)', [account_id, account_number, account_name]);
     await client.query(`
-      INSERT INTO users (user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, is_admin)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
-    `, [user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash]);
-    
-    const refresh_token = uuidv4();
-    const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await client.query('INSERT INTO user_sessions (session_id, user_id, refresh_token, expires_at) VALUES ($1, $2, $3, $4)', [uuidv4(), user_id, refresh_token, expires_at]);
-    
+      INSERT INTO users (user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, is_admin, is_confirmed, confirmation_token, confirmation_expires)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 0, $9, $10)
+    `, [user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, confirmation_token, confirmation_expires]);
     await client.query('COMMIT');
 
-    const token = jwt.sign(
-      { user_id, account_id, account_number, login_name, is_admin: true },
-      JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    // Send the email
+    try {
+      await sendConfirmationEmail(email, first_name, confirmation_token);
+    } catch (emailErr) {
+      console.warn('DB record created but email failed to send', emailErr);
+    }
 
-    res.status(201).json({ account_number, account_name, user_id, token, refresh_token });
+    res.status(201).json({ 
+      message: 'Registration successful! Please check your email to confirm your account.',
+      account_number, 
+      account_name, 
+      user_id 
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Registration failed' });
   } finally {
     client.release();
+  }
+});
+
+// GET /auth/confirm/:token
+router.get('/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const userRes = await query('SELECT user_id, confirmation_expires FROM users WHERE confirmation_token = $1 AND is_confirmed = 0', [token]);
+    const user = userRes.rows[0];
+
+    if (!user) {
+      return res.send(`
+        <html>
+          <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+            <h1 style="color: #e53e3e;">Invalid or Expired Token</h1>
+            <p>We couldn't find a pending confirmation for this link. It may have already been used or expired.</p>
+            <a href="https://varipro.app" style="color: #f6ad55;">Back to VariPro</a>
+          </body>
+        </html>
+      `);
+    }
+
+    if (new Date(user.confirmation_expires) < new Date()) {
+      return res.send(`
+        <html>
+          <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+            <h1 style="color: #e53e3e;">Token Expired</h1>
+            <p>This confirmation link has expired. Please try registering again or contact support.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    await query('UPDATE users SET is_confirmed = 1, confirmation_token = NULL, confirmation_expires = NULL WHERE user_id = $1', [user.user_id]);
+
+    res.send(`
+      <html>
+        <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+          <h1 style="color: #48bb78;">✅ Account Confirmed!</h1>
+          <p>Your VariPro account is now active. You can now log into the mobile app.</p>
+          <div style="margin-top: 20px;">
+             <p style="font-size: 14px; color: #718096;">You can close this window now.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal server error during confirmation');
   }
 });
 
@@ -113,6 +168,11 @@ router.post('/login', async (req, res) => {
     if (!user) {
       trackFailedAttempt(lockKey);
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Check if confirmed
+    if (!user.is_confirmed) {
+      return res.status(403).json({ error: 'Please confirm your email before logging in.' });
     }
 
     let authenticated = false;
@@ -175,6 +235,11 @@ router.post('/refresh', async (req, res) => {
 
     const userRes = await query('SELECT u.*, a.account_number FROM users u JOIN accounts a ON u.account_id = a.account_id WHERE u.user_id = $1', [session.user_id]);
     const user = userRes.rows[0];
+    
+    if (!user.is_confirmed) {
+       return res.status(403).json({ error: 'Account not confirmed' });
+    }
+
     const token = jwt.sign(
       { user_id: user.user_id, account_id: user.account_id, account_number: user.account_number, login_name: user.login_name, is_admin: !!user.is_admin },
       JWT_SECRET,

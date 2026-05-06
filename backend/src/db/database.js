@@ -43,10 +43,10 @@ async function initSchema() {
       login_name              TEXT UNIQUE NOT NULL,
       email                   TEXT NOT NULL,
       password_hash           TEXT NOT NULL,
-      pin_hash                TEXT,
-      face_recognition_enabled INTEGER DEFAULT 0,
-      face_recognition_token  TEXT,
       is_admin                INTEGER DEFAULT 0,
+      is_confirmed            INTEGER DEFAULT 0,
+      confirmation_token      TEXT,
+      confirmation_expires    TIMESTAMP,
       last_login              TIMESTAMP,
       created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
