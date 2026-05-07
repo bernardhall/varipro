@@ -67,26 +67,31 @@ router.post('/register', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 0, $9, $10)
     `, [user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, confirmation_token, confirmation_expires]);
     await client.query('COMMIT');
+    console.log(`[Auth] Registration successful for ${login_name}. Account: ${account_number}`);
 
-    // Send the email
-    try {
-      await sendConfirmationEmail(email, first_name, confirmation_token);
-    } catch (emailErr) {
-      console.warn('DB record created but email failed to send', emailErr);
-    }
+    // Send the email (non-blocking)
+    sendConfirmationEmail(email, first_name, confirmation_token)
+      .then(() => console.log(`[Auth] Confirmation email sent to ${email}`))
+      .catch(emailErr => {
+        console.error(`[Auth] Failed to send confirmation email to ${email}:`, emailErr.message);
+        // We don't throw here, so the user still gets their account number
+      });
 
-    res.status(201).json({ 
+    return res.status(201).json({ 
       message: 'Registration successful! Please check your email to confirm your account.',
       account_number, 
       account_name, 
       user_id 
     });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ error: 'Registration failed' });
+    if (client) await client.query('ROLLBACK');
+    console.error('[Auth] Registration Error:', err);
+    res.status(500).json({ 
+      error: 'Registration failed',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
