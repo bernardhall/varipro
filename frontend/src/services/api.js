@@ -20,7 +20,9 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     if (!error.response) {
-      console.warn('[API] Network Error - possible CORS or Connection Refused:', error.message);
+      console.warn(`[API] NETWORK ERROR: ${error.message}. Is the server down or is the connection unstable?`);
+    } else {
+      console.warn(`[API] SERVER ERROR (${error.response.status}):`, error.response.data);
     }
     // Skip refresh logic for the login endpoint itself
     const isLoginRequest = error.config?.url?.includes('/auth/login');

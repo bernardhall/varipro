@@ -29,18 +29,9 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (payload) => {
-    const data = await apiRegister(payload);
-    await storage.setItemAsync('auth_token', data.token);
-    await storage.setItemAsync('refresh_token', data.refresh_token);
-    const userData = {
-      user_id: data.user_id,
-      account_number: data.account_number,
-      account_name: data.account_name,
-      is_admin: true,
-    };
-    await storage.setItemAsync('user_data', JSON.stringify(userData));
-    setUser(userData);
-    return data;
+    // We just return the data (account_number, etc.) 
+    // We DON'T set the user or tokens here because they must confirm email first.
+    return await apiRegister(payload);
   };
 
   const logout = async () => {

@@ -1,11 +1,20 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+if (!resend) {
+  console.warn('⚠️ WARNING: RESEND_API_KEY not found. Emails will not be sent.');
+}
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://varipro-backend.onrender.com';
 
 async function sendConfirmationEmail(email, name, token) {
   const confirmLink = `${BACKEND_URL}/auth/confirm/${token}`;
+
+  if (!resend) {
+    console.error(`[Email] Cannot send email to ${email} - RESEND_API_KEY is missing.`);
+    return null;
+  }
 
   try {
     const data = await resend.emails.send({
