@@ -176,9 +176,13 @@ router.post('/login', async (req, res) => {
     }
 
     // Check if confirmed
+    // TODO: RE-ENABLE BEFORE PRODUCTION
+    // To bypass email verification during development, I have commented out this check.
+    /*
     if (!user.is_confirmed) {
       return res.status(403).json({ error: 'Please confirm your email before logging in.' });
     }
+    */
 
     let authenticated = false;
     if (password) {
@@ -241,9 +245,12 @@ router.post('/refresh', async (req, res) => {
     const userRes = await query('SELECT u.*, a.account_number FROM users u JOIN accounts a ON u.account_id = a.account_id WHERE u.user_id = $1', [session.user_id]);
     const user = userRes.rows[0];
     
+    // TODO: RE-ENABLE BEFORE PRODUCTION
+    /*
     if (!user.is_confirmed) {
        return res.status(403).json({ error: 'Account not confirmed' });
     }
+    */
 
     const token = jwt.sign(
       { user_id: user.user_id, account_id: user.account_id, account_number: user.account_number, login_name: user.login_name, is_admin: !!user.is_admin },
