@@ -6,6 +6,7 @@ import {
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../hooks/useAuth';
 import storage from '../utils/storage';
+import { getAccountName } from '../services/api';
 import { Button, Input, Card } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
@@ -26,12 +27,31 @@ export default function LoginScreen({ navigation }) {
     (async () => {
       try {
         const saved = await storage.getItemAsync('last_account_number');
-        if (saved) setAccountNumber(saved);
+        if (saved) {
+          setAccountNumber(saved);
+        }
       } catch (err) {
         console.warn('Failed to load saved account number', err);
       }
     })();
   }, []);
+
+  // Fetch Account Name when Account Number is entered
+  useEffect(() => {
+    if (accountNumber.length >= 9) { // e.g. TRDE-KKBV is 9 chars
+      const fetchName = async () => {
+        try {
+          const data = await getAccountName(accountNumber.trim().toUpperCase());
+          setAccountName(data.account_name);
+        } catch (err) {
+          setAccountName('Account not found');
+        }
+      };
+      fetchName();
+    } else {
+      setAccountName('');
+    }
+  }, [accountNumber]);
 
   const handleBiometric = async () => {
     const result = await LocalAuthentication.authenticateAsync({
@@ -104,11 +124,11 @@ export default function LoginScreen({ navigation }) {
             autoCorrect={false}
           />
           <Input
-            label="Account Name (optional)"
-            placeholder="Auto-fills from Account Number"
+            label="Account Name"
             value={accountName}
-            onChangeText={setAccountName}
-            autoCapitalize="words"
+            editable={false}
+            style={{ backgroundColor: '#F1F4F9', color: colors.textSecondary }}
+            placeholder="Enter Account Number to see name"
           />
           <Input
             label="Login Name"

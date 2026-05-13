@@ -41,9 +41,9 @@ api.interceptors.response.use(
   }
 );
 
-// ── Auth ──────────────────────────────────────────────────────────────────
 export const register = (payload) => api.post('/auth/register', payload).then(r => r.data);
 export const login = (payload) => api.post('/auth/login', payload).then(r => r.data);
+export const getAccountName = (number) => api.get(`/auth/account-name/${number}`).then(r => r.data);
 export const refreshToken = (refresh_token) => api.post('/auth/refresh', { refresh_token }).then(r => r.data);
 export const requestPasswordReset = (email) => api.post('/auth/password-reset', { email }).then(r => r.data);
 
