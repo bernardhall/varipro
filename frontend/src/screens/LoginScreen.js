@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../hooks/useAuth';
+import storage from '../utils/storage';
 import { Button, Input, Card } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
@@ -19,6 +20,18 @@ export default function LoginScreen({ navigation }) {
   const [pin, setPin] = useState('');
   const [errors, setErrors] = useState({});
   const [loginError, setLoginError] = useState('');
+
+  // Load last used account number on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await storage.getItemAsync('last_account_number');
+        if (saved) setAccountNumber(saved);
+      } catch (err) {
+        console.warn('Failed to load saved account number', err);
+      }
+    })();
+  }, []);
 
   const handleBiometric = async () => {
     const result = await LocalAuthentication.authenticateAsync({
@@ -45,12 +58,15 @@ export default function LoginScreen({ navigation }) {
     if (!validate()) return;
     setLoading(true);
     try {
+      const cleanAccountNumber = accountNumber.trim().toUpperCase();
       await login({
-        account_number: accountNumber.trim().toUpperCase(),
+        account_number: cleanAccountNumber,
         login_name: loginName.trim(),
         ...(authMethod === 'password' ? { password } : {}),
         ...(authMethod === 'pin' ? { pin } : {}),
       });
+      // Save for next time
+      await storage.setItemAsync('last_account_number', cleanAccountNumber);
     } catch (err) {
       console.log('[DEBUG] Login error:', err);
       if (!err.response) {

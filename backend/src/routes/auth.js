@@ -263,6 +263,20 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+// GET /auth/account-name/:number
+router.get('/account-name/:number', async (req, res) => {
+  try {
+    const { number } = req.params;
+    const accountRes = await query('SELECT account_name FROM accounts WHERE account_number = $1', [number.toUpperCase()]);
+    if (accountRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    res.json({ account_name: accountRes.rows[0].account_name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /auth/password-reset
 router.post('/password-reset', (req, res) => {
   res.json({ message: 'If that email exists, a reset link has been sent.' });

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../hooks/useAuth';
+import storage from '../utils/storage';
 import { Button, Input, Card } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
@@ -69,7 +70,12 @@ export default function RegisterScreen({ navigation }) {
         },
       };
       const data = await register(payload);
-      setGeneratedAccountNumber(data.account_number);
+      const cleanAccountNumber = data.account_number;
+      setGeneratedAccountNumber(cleanAccountNumber);
+      
+      // Save for the login screen pre-fill
+      await storage.setItemAsync('last_account_number', cleanAccountNumber);
+      
       setStep(4);
     } catch (err) {
       const msg = err.response?.data?.error || 'Registration failed. Please try again.';
