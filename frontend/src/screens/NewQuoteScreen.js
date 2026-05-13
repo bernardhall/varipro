@@ -6,7 +6,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { createQuote, updateQuote, createClient, getClients, uploadPhotos, getAccountSettings } from '../services/api';
+import { 
+  createQuote, updateQuote, createClient, getClients, 
+  uploadPhotos, getAccountSettings, BASE_URL 
+} from '../services/api';
 import { Button, Input, Card, SectionHeader } from '../components/UI';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
@@ -46,7 +49,12 @@ export default function NewQuoteScreen({ navigation, route }) {
         if (editingQuote.equipment?.length) setEquipment(editingQuote.equipment.map(e => ({ ...e, duration_days: e.duration_days.toString(), daily_rate: e.daily_rate.toString() })));
         if (editingQuote.sundry?.length) setSundry(editingQuote.sundry.map(s => ({ ...s, flat_amount: s.flat_amount.toString() })));
         if (editingQuote.higher_costs?.length) setHigherCosts(editingQuote.higher_costs.map(h => ({ ...h, amount: h.amount.toString() })));
-        if (editingQuote.photos?.length) setPhotos(editingQuote.photos.map(p => ({ uri: `https://varipro-backend.onrender.com${p.image_uri}`, isExisting: true })));
+        if (editingQuote.photos?.length) {
+          setPhotos(editingQuote.photos.map(p => ({ 
+            uri: p.image_uri.startsWith('http') ? p.image_uri : `${BASE_URL}${p.image_uri}`, 
+            isExisting: true 
+          })));
+        }
       }
     })();
   }, []);
@@ -134,7 +142,7 @@ export default function NewQuoteScreen({ navigation, route }) {
       const payload = {
         job_name: jobName,
         client_id: client_id || undefined,
-        status: asDraft ? 'draft' : 'draft',
+        status: asDraft ? 'draft' : (editingQuote?.status || 'draft'),
         summary_explanation: summary,
         tasks: tasks.filter(t => t.task_name).map(t => ({ 
           task_name: t.task_name, 
@@ -148,14 +156,25 @@ export default function NewQuoteScreen({ navigation, route }) {
         higher_costs: higherCosts.filter(h => h.description).map(h => ({ description: h.description, amount: parseFloat(h.amount) || 0 })),
       };
 
+      let quoteId = editingQuote?.id;
       if (isEditing) {
-        await updateQuote(editingQuote.id, payload);
+        await updateQuote(quoteId, payload);
       } else {
         const created = await createQuote(payload);
-        if (photos.length > 0) {
-          try { await uploadPhotos(created.id, photos.filter(p => !p.isExisting).map(p => p.uri)); } catch {}
+        quoteId = created.id;
+      }
+
+      // Handle photos
+      const newPhotos = photos.filter(p => !p.isExisting).map(p => p.uri);
+      if (newPhotos.length > 0) {
+        try {
+          await uploadPhotos(quoteId, newPhotos);
+        } catch (err) {
+          console.warn('Photo upload failed:', err);
+          Alert.alert('Partially Saved', 'Quote saved but some photos failed to upload.');
         }
       }
+
       navigation.navigate('Quotes');
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || 'Failed to save quote.');

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import storage from '../utils/storage';
 
-const BASE_URL = 'https://varipro-backend.onrender.com'; 
+export const BASE_URL = 'https://varipro-backend.onrender.com'; 
 // When live on Render: const BASE_URL = 'https://varipro-backend.onrender.com';
 
 const api = axios.create({ baseURL: BASE_URL, timeout: 60000 });

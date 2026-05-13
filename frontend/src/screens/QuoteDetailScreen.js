@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
-import { getQuote, updateQuote } from '../services/api';
+import { getQuote, updateQuote, BASE_URL } from '../services/api';
 import { Badge, Card, LoadingScreen, SectionHeader, LineItemRow } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
@@ -14,8 +14,6 @@ export default function QuoteDetailScreen({ route, navigation }) {
   useEffect(() => {
     getQuote(quoteId).then(setQuote).catch(console.error).finally(() => setLoading(false));
   }, [quoteId]);
-
-  const BASE_URL = 'https://varipro-backend.onrender.com';
 
   const changeStatus = async (status) => {
     await updateQuote(quoteId, { status });

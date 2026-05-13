@@ -11,9 +11,13 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
+        // We no longer auto-restore the session on startup.
+        // This ensures the app always defaults to the Login screen.
+        /*
         const stored = await storage.getItemAsync('user_data');
         const token = await storage.getItemAsync('auth_token');
         if (stored && token) setUser(JSON.parse(stored));
+        */
       } catch {}
       setLoading(false);
     })();
