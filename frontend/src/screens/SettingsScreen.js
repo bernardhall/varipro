@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Card, Button } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const { user, logout } = useAuth();
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 

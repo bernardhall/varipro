@@ -1,15 +1,18 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, ScrollView, Switch } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getUsers, createUser, deleteUser } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { getUsers, createUser, deleteUser, updateUser } from '../services/api';
 import { Button, Input, EmptyState, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
 export default function UsersScreen() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState({ first_name: '', last_name: '', login_name: '', email: '', password: '', pin: '', is_admin: false });
 
   const fetchUsers = useCallback(async () => {
@@ -22,23 +25,58 @@ export default function UsersScreen() {
 
   const set = (key) => (val) => setForm(p => ({ ...p, [key]: val }));
 
-  const handleCreate = async () => {
-    if (!form.first_name || !form.last_name || !form.login_name || !form.email || !form.password) {
-      Alert.alert('Required', 'All fields except PIN are required.');
+  const handleAddPress = () => {
+    setEditingUser(null);
+    setForm({ first_name: '', last_name: '', login_name: '', email: '', password: '', pin: '', is_admin: false });
+    setShowModal(true);
+  };
+
+  const handleEditPress = (user) => {
+    setEditingUser(user);
+    setForm({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      login_name: user.login_name || '',
+      email: user.email || '',
+      password: '',
+      pin: '',
+      is_admin: !!user.is_admin
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.first_name || !form.last_name || !form.login_name || !form.email) {
+      Alert.alert('Required', 'First name, last name, login name, and email are required.');
+      return;
+    }
+    if (!editingUser && !form.password) {
+      Alert.alert('Required', 'Password is required to add a new team member.');
       return;
     }
     setSaving(true);
     try {
-      await createUser(form);
+      if (editingUser) {
+        await updateUser(editingUser.user_id, form);
+        Alert.alert('Success', 'Team member updated successfully');
+      } else {
+        await createUser(form);
+        Alert.alert('Success', 'Team member added successfully');
+      }
       setShowModal(false);
+      setEditingUser(null);
       setForm({ first_name: '', last_name: '', login_name: '', email: '', password: '', pin: '', is_admin: false });
       fetchUsers();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to create user.');
+      Alert.alert('Error', err.response?.data?.error || 'Failed to save team member.');
     } finally { setSaving(false); }
   };
 
   const handleDelete = (id, name) => {
+    if (id === currentUser?.user_id) {
+      Alert.alert('Action Blocked', 'You cannot delete yourself.');
+      return;
+    }
     Alert.alert('Remove User', `Remove ${name} from this account?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
@@ -47,6 +85,8 @@ export default function UsersScreen() {
       }},
     ]);
   };
+
+  const isEditingSelf = editingUser?.user_id === currentUser?.user_id;
 
   if (loading) return <LoadingScreen />;
 
@@ -58,13 +98,14 @@ export default function UsersScreen() {
         contentContainerStyle={{ padding: spacing.md, paddingBottom: 100 }}
         ListHeaderComponent={
           <Text style={[typography.caption, { marginBottom: spacing.md, color: colors.textSecondary }]}>
-            {users.length} user{users.length !== 1 ? 's' : ''} in this account · Long-press to remove
+            {users.length} user{users.length !== 1 ? 's' : ''} in this account · Tap to edit · Long-press to remove
           </Text>
         }
         ListEmptyComponent={<EmptyState icon="👥" title="No users" subtitle="Add team members to this account" />}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.card}
+            onPress={() => handleEditPress(item)}
             onLongPress={() => handleDelete(item.user_id, `${item.first_name} ${item.last_name}`)}
             activeOpacity={0.85}
           >
@@ -86,27 +127,52 @@ export default function UsersScreen() {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)}>
+      <TouchableOpacity style={styles.fab} onPress={handleAddPress}>
         <Text style={styles.fabText}>＋</Text>
       </TouchableOpacity>
 
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }} keyboardShouldPersistTaps="handled">
-          <Text style={[typography.h2, { marginBottom: spacing.xl }]}>Add Team Member</Text>
+          <Text style={[typography.h2, { marginBottom: spacing.xl }]}>{editingUser ? 'Edit Team Member' : 'Add Team Member'}</Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <View style={{ flex: 1 }}><Input label="First Name *" value={form.first_name} onChangeText={set('first_name')} autoCapitalize="words" /></View>
             <View style={{ flex: 1 }}><Input label="Last Name *" value={form.last_name} onChangeText={set('last_name')} autoCapitalize="words" /></View>
           </View>
           <Input label="Login Name *" value={form.login_name} onChangeText={set('login_name')} autoCapitalize="none" autoCorrect={false} />
           <Input label="Email *" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" />
-          <Input label="Password *" value={form.password} onChangeText={set('password')} secureTextEntry />
-          <Input label="PIN (optional)" value={form.pin} onChangeText={set('pin')} keyboardType="numeric" secureTextEntry maxLength={6} />
-          <View style={styles.switchRow}>
-            <Text style={{ fontSize: 15, color: colors.text }}>Grant Admin Access</Text>
-            <Switch value={form.is_admin} onValueChange={set('is_admin')} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
+          <Input 
+            label={editingUser ? "New Password (optional)" : "Password *"} 
+            placeholder={editingUser ? "Leave blank to keep current" : ""}
+            placeholderTextColor={colors.textSecondary}
+            value={form.password} 
+            onChangeText={set('password')} 
+            secureTextEntry 
+          />
+          <Input 
+            label={editingUser ? "New PIN (optional)" : "PIN (optional)"} 
+            placeholder={editingUser ? "Leave blank to keep current" : ""}
+            placeholderTextColor={colors.textSecondary}
+            value={form.pin} 
+            onChangeText={set('pin')} 
+            keyboardType="numeric" 
+            secureTextEntry 
+            maxLength={6} 
+          />
+          <View style={[styles.switchRow, isEditingSelf && { opacity: 0.6 }]}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={{ fontSize: 15, color: colors.text }}>Grant Admin Access</Text>
+              {isEditingSelf && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>You cannot demote yourself</Text>}
+            </View>
+            <Switch 
+              value={form.is_admin} 
+              onValueChange={set('is_admin')} 
+              disabled={isEditingSelf}
+              trackColor={{ false: colors.border, true: colors.primary }} 
+              thumbColor="#fff" 
+            />
           </View>
-          <Button title="Add User" onPress={handleCreate} loading={saving} style={{ marginBottom: spacing.sm }} />
-          <Button title="Cancel" onPress={() => setShowModal(false)} variant="outline" />
+          <Button title={editingUser ? "Save Changes" : "Add User"} onPress={handleSave} loading={saving} style={{ marginBottom: spacing.sm }} />
+          <Button title="Cancel" onPress={() => { setShowModal(false); setEditingUser(null); }} variant="outline" />
         </ScrollView>
       </Modal>
     </View>

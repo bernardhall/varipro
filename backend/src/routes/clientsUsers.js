@@ -118,6 +118,67 @@ router.post('/users', adminMiddleware, async (req, res) => {
   }
 });
 
+// PUT /users/:id (admin only)
+router.put('/users/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { first_name, last_name, login_name, email, password, pin, is_admin } = req.body;
+    const userId = req.params.id;
+
+    // Check if user exists in the same account
+    const userCheck = await query('SELECT * FROM users WHERE user_id = $1 AND account_id = $2', [userId, req.user.account_id]);
+    if (userCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentUser = userCheck.rows[0];
+
+    // If changing login name, check uniqueness
+    if (login_name && login_name !== currentUser.login_name) {
+      const existing = await query('SELECT 1 FROM users WHERE login_name = $1', [login_name]);
+      if (existing.rowCount > 0) return res.status(409).json({ error: 'Login name already taken' });
+    }
+
+    let passwordHash = currentUser.password_hash;
+    if (password) {
+      if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ error: 'Password must be 8+ chars with at least 1 letter and 1 number' });
+      }
+      passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    let pinHash = currentUser.pin_hash;
+    if (pin !== undefined && pin !== null) {
+      pinHash = pin ? await bcrypt.hash(pin, 10) : null;
+    }
+
+    const updatedFirstName = first_name !== undefined ? first_name : currentUser.first_name;
+    const updatedLastName = last_name !== undefined ? last_name : currentUser.last_name;
+    const updatedLoginName = login_name !== undefined ? login_name : currentUser.login_name;
+    const updatedEmail = email !== undefined ? email : currentUser.email;
+    
+    // Admins can change admin status for anyone except themselves (to prevent locking themselves out)
+    let updatedIsAdmin = currentUser.is_admin;
+    if (is_admin !== undefined) {
+      if (userId === req.user.user_id) {
+        updatedIsAdmin = currentUser.is_admin;
+      } else {
+        updatedIsAdmin = is_admin ? 1 : 0;
+      }
+    }
+
+    await query(
+      `UPDATE users 
+       SET first_name = $1, last_name = $2, login_name = $3, email = $4, password_hash = $5, pin_hash = $6, is_admin = $7 
+       WHERE user_id = $8 AND account_id = $9`,
+      [updatedFirstName, updatedLastName, updatedLoginName, updatedEmail, passwordHash, pinHash, updatedIsAdmin, userId, req.user.account_id]
+    );
+
+    res.json({ message: 'User updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /users/:id (admin only)
 router.delete('/users/:id', adminMiddleware, async (req, res) => {
   try {

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, Modal, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getClients, createClient, deleteClient } from '../services/api';
+import { getClients, createClient, deleteClient, updateClient } from '../services/api';
 import { Button, Input, EmptyState, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
@@ -10,6 +10,7 @@ export default function ClientsScreen() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', site_address: '' });
   const [saving, setSaving] = useState(false);
 
@@ -25,16 +26,43 @@ export default function ClientsScreen() {
 
   const set = (key) => (val) => setForm(p => ({ ...p, [key]: val }));
 
-  const handleCreate = async () => {
-    if (!form.full_name || !form.site_address) { Alert.alert('Required', 'Name and site address are required.'); return; }
+  const handleAddPress = () => {
+    setEditingClient(null);
+    setForm({ full_name: '', email: '', phone: '', site_address: '' });
+    setShowModal(true);
+  };
+
+  const handleEditPress = (client) => {
+    setEditingClient(client);
+    setForm({
+      full_name: client.full_name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      site_address: client.site_address || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.full_name || !form.site_address) { 
+      Alert.alert('Required', 'Name and site address are required.'); 
+      return; 
+    }
     setSaving(true);
     try {
-      await createClient(form);
+      if (editingClient) {
+        await updateClient(editingClient.id, form);
+        Alert.alert('Success', 'Client updated successfully');
+      } else {
+        await createClient(form);
+        Alert.alert('Success', 'Client created successfully');
+      }
       setShowModal(false);
+      setEditingClient(null);
       setForm({ full_name: '', email: '', phone: '', site_address: '' });
       fetchClients();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to create client.');
+      Alert.alert('Error', err.response?.data?.error || 'Failed to save client.');
     } finally { setSaving(false); }
   };
 
@@ -42,8 +70,12 @@ export default function ClientsScreen() {
     Alert.alert('Delete Client', `Delete ${name}?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await deleteClient(id);
-        setClients(prev => prev.filter(c => c.id !== id));
+        try {
+          await deleteClient(id);
+          setClients(prev => prev.filter(c => c.id !== id));
+        } catch (err) {
+          Alert.alert('Error', err.response?.data?.error || 'Failed to delete client.');
+        }
       }},
     ]);
   };
@@ -68,9 +100,21 @@ export default function ClientsScreen() {
         data={clients}
         keyExtractor={item => item.id}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: 100 }}
+        ListHeaderComponent={
+          clients.length > 0 ? (
+            <Text style={[typography.caption, { marginBottom: spacing.md, color: colors.textSecondary }]}>
+              {clients.length} client{clients.length !== 1 ? 's' : ''} · Tap to edit · Long-press to remove
+            </Text>
+          ) : null
+        }
         ListEmptyComponent={<EmptyState icon="👤" title="No clients yet" subtitle="Tap + to add your first client" />}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onLongPress={() => handleDelete(item.id, item.full_name)} activeOpacity={0.85}>
+          <TouchableOpacity 
+            style={styles.card} 
+            onPress={() => handleEditPress(item)}
+            onLongPress={() => handleDelete(item.id, item.full_name)} 
+            activeOpacity={0.85}
+          >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{item.full_name.charAt(0).toUpperCase()}</Text>
             </View>
@@ -84,19 +128,19 @@ export default function ClientsScreen() {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)}>
+      <TouchableOpacity style={styles.fab} onPress={handleAddPress}>
         <Text style={styles.fabText}>＋</Text>
       </TouchableOpacity>
 
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}>
-          <Text style={[typography.h2, { marginBottom: spacing.xl }]}>New Client</Text>
+        <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }} keyboardShouldPersistTaps="handled">
+          <Text style={[typography.h2, { marginBottom: spacing.xl }]}>{editingClient ? 'Edit Client' : 'New Client'}</Text>
           <Input label="Full Name *" value={form.full_name} onChangeText={set('full_name')} autoCapitalize="words" />
           <Input label="Site Address *" value={form.site_address} onChangeText={set('site_address')} />
           <Input label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" />
           <Input label="Phone" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" />
-          <Button title="Save Client" onPress={handleCreate} loading={saving} style={{ marginBottom: spacing.sm }} />
-          <Button title="Cancel" onPress={() => setShowModal(false)} variant="outline" />
+          <Button title={editingClient ? "Save Changes" : "Save Client"} onPress={handleSave} loading={saving} style={{ marginBottom: spacing.sm }} />
+          <Button title="Cancel" onPress={() => { setShowModal(false); setEditingClient(null); }} variant="outline" />
         </ScrollView>
       </Modal>
     </View>

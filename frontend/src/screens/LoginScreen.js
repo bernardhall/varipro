@@ -101,16 +101,18 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#FFFFFF' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: 60 }]} keyboardShouldPersistTaps="handled">
 
         <View style={styles.logoArea}>
           <Image 
             source={require('../../assets/VariProImages/VariProLogoWhite.png')} 
-            style={styles.logoImage} 
+            style={[styles.logoImage, { width: 320, height: 160 }]} 
             resizeMode="contain"
           />
-          <Text style={styles.tagline}>Professional quotes on-site</Text>
+          <Text style={[styles.tagline, { color: colors.textSecondary, marginTop: -20, fontWeight: '600' }]}>
+            Professional quotes on-site
+          </Text>
         </View>
 
         <Card>
@@ -213,11 +215,11 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, paddingTop: 60 },
-  logoArea: { alignItems: 'center', marginBottom: spacing.xl },
-  logoImage: { width: '100%', height: 300, maxWidth: 600 },
-  tagline: { color: colors.textSecondary, marginTop: -20, fontWeight: '500' },
+  logoArea: { alignItems: 'center', marginBottom: spacing.xl, paddingTop: 40 },
+  logoImage: { width: 280, height: 120 },
+  tagline: { color: colors.textSecondary, marginTop: 10, fontWeight: '500' },
   methodRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   methodBtn: {
     flex: 1, paddingVertical: 10, borderRadius: 8,

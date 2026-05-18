@@ -42,6 +42,7 @@ export default function NewQuoteScreen({ navigation, route }) {
           setTasks(editingQuote.tasks.map(t => ({ 
             ...t, 
             estimated_hours: (t.estimated_hours || '').toString(),
+            hourly_rate: (t.hourly_rate || '').toString(),
             price: (t.price || '').toString()
           })));
         }
@@ -72,7 +73,7 @@ export default function NewQuoteScreen({ navigation, route }) {
 
   // Step 3
   const [summary, setSummary] = useState('');
-  const [tasks, setTasks] = useState([{ task_name: '', task_type: 'hourly', estimated_hours: '', price: '' }]);
+  const [tasks, setTasks] = useState([{ task_name: '', task_type: 'set', estimated_hours: '', hourly_rate: '', price: '' }]);
 
   // Step 4
   const [activeTab, setActiveTab] = useState('materials');
@@ -110,13 +111,41 @@ export default function NewQuoteScreen({ navigation, route }) {
   const removeRow = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateRow = (setter, idx, key, val) => setter(prev => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
 
+  const updateTaskRow = (idx, key, val) => {
+    setTasks(prev => prev.map((t, i) => {
+      if (i !== idx) return t;
+      const updated = { ...t, [key]: val };
+      
+      // Handle defaults when toggling task type
+      if (key === 'task_type') {
+        if (val === 'set') {
+          updated.hourly_rate = updated.hourly_rate || rates.hourly.toString();
+        } else if (val === 'charge') {
+          updated.hourly_rate = rates.hourly.toString();
+          updated.estimated_hours = '0';
+          updated.price = '0';
+        }
+      }
+
+      // Automatically recalculate price for Set Price task
+      if (updated.task_type === 'set') {
+        const hrs = parseFloat(updated.estimated_hours) || 0;
+        const rate = parseFloat(updated.hourly_rate) || rates.hourly;
+        updated.price = (hrs * rate).toString();
+      } else {
+        updated.price = '0';
+      }
+
+      return updated;
+    }));
+  };
+
   // Totals
   const laborCost = tasks.reduce((s, t) => {
     if (t.task_type === 'set') return s + (parseFloat(t.price) || 0);
-    if (t.task_type === 'charge') return s; // Open-ended doesn't add to fixed subtotal
-    return s + (parseFloat(t.estimated_hours) || 0) * rates.hourly;
+    return s; // 'charge' type is open-ended and doesn't add to fixed subtotal
   }, 0);
-  const laborHours = tasks.reduce((s, t) => t.task_type === 'hourly' ? s + (parseFloat(t.estimated_hours) || 0) : s, 0);
+  const hasChargeHourTasks = tasks.some(t => t.task_type === 'charge');
 
   const materialsTotal = materials.reduce((s, m) => s + (parseFloat(m.quantity) || 0) * (parseFloat(m.unit_cost) || 0), 0);
   const equipmentTotal = equipment.reduce((s, e) => s + (parseFloat(e.duration_days) || 0) * (parseFloat(e.daily_rate) || 0), 0);
@@ -147,7 +176,8 @@ export default function NewQuoteScreen({ navigation, route }) {
         tasks: tasks.filter(t => t.task_name).map(t => ({ 
           task_name: t.task_name, 
           task_type: t.task_type,
-          estimated_hours: t.task_type === 'hourly' ? parseFloat(t.estimated_hours) || 0 : 0,
+          estimated_hours: t.task_type === 'set' ? parseFloat(t.estimated_hours) || 0 : 0,
+          hourly_rate: t.task_type === 'set' ? parseFloat(t.hourly_rate) || rates.hourly : rates.hourly,
           price: t.task_type === 'set' ? parseFloat(t.price) || 0 : 0
         })),
         materials: materials.filter(m => m.item_name).map(m => ({ item_name: m.item_name, quantity: parseFloat(m.quantity) || 1, unit_cost: parseFloat(m.unit_cost) || 0 })),
@@ -205,7 +235,7 @@ export default function NewQuoteScreen({ navigation, route }) {
           <Text style={styles.stepTitle}>{isEditing ? 'Edit: ' : ''}{stepTitles[step - 1]}</Text>
           <Text style={styles.stepCount}>Step {step} of {TOTAL_STEPS}</Text>
         </View>
-        <View style={{ width: 60 }} />
+        <View style={{ width: 80 }} />
       </View>
       <ProgressBar />
 
@@ -295,31 +325,107 @@ export default function NewQuoteScreen({ navigation, route }) {
               <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'right' }}>{summary.length}/500</Text>
             </Card>
             <Card>
-              <SectionHeader title="Work Tasks" action="+ Add Task" onAction={() => setTasks(prev => [...prev, { task_type: 'set' }])} />
+              <SectionHeader title="Work Tasks" action="+ Add Task" onAction={() => setTasks(prev => [...prev, { task_name: '', task_type: 'set', hourly_rate: rates.hourly.toString(), estimated_hours: '', price: '' }])} />
               {tasks.map((t, i) => (
-                <View key={i} style={{ marginBottom: spacing.md, borderBottomWidth: i < tasks.length - 1 ? 1 : 0, borderBottomColor: colors.border, pb: spacing.sm }}>
+                <View key={i} style={{ marginBottom: spacing.md, borderBottomWidth: i < tasks.length - 1 ? 1 : 0, borderBottomColor: colors.border, paddingBottom: spacing.sm }}>
+                  {/* Task Name row */}
                   <View style={styles.lineRow}>
-                    <TextInput style={[styles.lineInput, { flex: 2 }]} placeholder="Task name" placeholderTextColor={colors.textSecondary} value={t.task_name} onChangeText={v => updateRow(setTasks, i, 'task_name', v)} />
-                    <TouchableOpacity onPress={() => removeRow(setTasks, i)} style={styles.deleteBtn}><Text style={{ color: colors.danger }}>✕</Text></TouchableOpacity>
+                    <TextInput 
+                      style={[styles.lineInput, { flex: 2 }]} 
+                      placeholder="Task name (e.g. Electrical wiring)" 
+                      placeholderTextColor={colors.textSecondary} 
+                      value={t.task_name} 
+                      onChangeText={v => updateTaskRow(i, 'task_name', v)} 
+                    />
+                    <TouchableOpacity onPress={() => removeRow(setTasks, i)} style={styles.deleteBtn}>
+                      <Text style={{ color: colors.danger }}>✕</Text>
+                    </TouchableOpacity>
                   </View>
+
+                  {/* Switch row */}
                   <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
-                    <View style={{ flexDirection: 'row', backgroundColor: colors.border, borderRadius: radius.xs, padding: 2, flex: 1.5 }}>
-                      <TouchableOpacity onPress={() => updateRow(setTasks, i, 'task_type', 'charge')} style={[{ flex: 1, paddingVertical: 4, alignItems: 'center', borderRadius: radius.xs }, t.task_type === 'charge' && { backgroundColor: '#fff' }]}>
+                    <View style={{ flexDirection: 'row', backgroundColor: colors.border, borderRadius: radius.xs, padding: 2, flex: 1 }}>
+                      <TouchableOpacity 
+                        onPress={() => updateTaskRow(i, 'task_type', 'charge')} 
+                        style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: radius.xs }, t.task_type === 'charge' && { backgroundColor: '#fff' }]}
+                      >
                         <Text style={{ fontSize: 11, fontWeight: '700', color: t.task_type === 'charge' ? colors.primary : colors.textSecondary }}>Charge/Hour</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => updateRow(setTasks, i, 'task_type', 'set')} style={[{ flex: 1, paddingVertical: 4, alignItems: 'center', borderRadius: radius.xs }, t.task_type === 'set' && { backgroundColor: '#fff' }]}>
+                      <TouchableOpacity 
+                        onPress={() => updateTaskRow(i, 'task_type', 'set')} 
+                        style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: radius.xs }, t.task_type === 'set' && { backgroundColor: '#fff' }]}
+                      >
                         <Text style={{ fontSize: 11, fontWeight: '700', color: t.task_type === 'set' ? colors.primary : colors.textSecondary }}>Set Price</Text>
                       </TouchableOpacity>
                     </View>
+                  </View>
+
+                  {/* Inputs row */}
+                  <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
                     {t.task_type === 'charge' ? (
-                      <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="Hourly Rate" placeholderTextColor={colors.textSecondary} value={t.hourly_rate} onChangeText={v => updateRow(setTasks, i, 'hourly_rate', v)} keyboardType="decimal-pad" />
+                      <>
+                        {/* Charge/Hour Fields */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Hourly Rate</Text>
+                          <TextInput 
+                            style={[styles.lineInput, { backgroundColor: '#F3F4F6', color: colors.textSecondary }]} 
+                            value={fmt(rates.hourly)} 
+                            editable={false} 
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Total</Text>
+                          <TextInput 
+                            style={[styles.lineInput, { backgroundColor: '#F3F4F6', color: colors.textSecondary, textAlign: 'center' }]} 
+                            value="???" 
+                            editable={false} 
+                          />
+                        </View>
+                      </>
                     ) : (
-                      <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="Total Price" placeholderTextColor={colors.textSecondary} value={t.price} onChangeText={v => updateRow(setTasks, i, 'price', v)} keyboardType="decimal-pad" />
+                      <>
+                        {/* Set Price Fields */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Hourly Rate ($)</Text>
+                          <TextInput 
+                            style={styles.lineInput} 
+                            placeholder={rates.hourly.toString()} 
+                            placeholderTextColor={colors.textSecondary} 
+                            value={t.hourly_rate} 
+                            onChangeText={v => updateTaskRow(i, 'hourly_rate', v)} 
+                            keyboardType="decimal-pad" 
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Hours</Text>
+                          <TextInput 
+                            style={styles.lineInput} 
+                            placeholder="Hours" 
+                            placeholderTextColor={colors.textSecondary} 
+                            value={t.estimated_hours} 
+                            onChangeText={v => updateTaskRow(i, 'estimated_hours', v)} 
+                            keyboardType="decimal-pad" 
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Calculated ($)</Text>
+                          <TextInput 
+                            style={[styles.lineInput, { backgroundColor: '#F3F4F6', color: colors.textSecondary }]} 
+                            value={(parseFloat(t.price) || 0).toFixed(2)} 
+                            editable={false} 
+                          />
+                        </View>
+                      </>
                     )}
                   </View>
                 </View>
               ))}
-              <View style={styles.totalRow}><Text style={{ color: colors.textSecondary }}>Labour ({fmt(rates.hourly)}/hr)</Text><Text style={styles.totalValue}>{fmt(laborCost)}</Text></View>
+              <View style={styles.totalRow}>
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Labour Total</Text>
+                <Text style={styles.totalValue}>
+                  {hasChargeHourTasks ? `${fmt(laborCost)}+` : fmt(laborCost)}
+                </Text>
+              </View>
             </Card>
           </>
         )}
@@ -418,12 +524,16 @@ export default function NewQuoteScreen({ navigation, route }) {
               ].map(r => (
                 <View key={r.label} style={styles.summaryRow}>
                   <Text style={{ color: colors.textSecondary }}>{r.label}</Text>
-                  <Text style={{ fontWeight: '600' }}>{fmt(r.val)}</Text>
+                  <Text style={{ fontWeight: '600' }}>
+                    {r.label === 'Subtotal' && hasChargeHourTasks ? `${fmt(r.val)}+` : fmt(r.val)}
+                  </Text>
                 </View>
               ))}
               <View style={[styles.summaryRow, styles.grandTotalRow]}>
                 <Text style={{ fontSize: 18, fontWeight: '700' }}>Grand Total</Text>
-                <Text style={{ fontSize: 22, fontWeight: '800', color: colors.primary }}>{fmt(grandTotal)}</Text>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: colors.primary }}>
+                  {hasChargeHourTasks ? `${fmt(grandTotal)}+` : fmt(grandTotal)}
+                </Text>
               </View>
             </Card>
             <Button title={isEditing ? '💾 Update Quote' : '✅ Create Quote'} onPress={() => handleSave(false)} loading={saving} variant="secondary" style={{ marginBottom: spacing.sm }} />
@@ -453,7 +563,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingTop: 52, paddingBottom: spacing.md,
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { color: colors.primary, fontSize: 16, fontWeight: '600', width: 60 },
+  backBtn: { color: colors.primary, fontSize: 16, fontWeight: '600', width: 80 },
   stepTitle: { fontWeight: '700', fontSize: 16, color: colors.text },
   stepCount: { color: colors.textSecondary, fontSize: 12 },
   progressContainer: { flexDirection: 'row', height: 4, backgroundColor: colors.border },
