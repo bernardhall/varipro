@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
     let pIdx = 2;
 
     // Non-admin users see only their own quotes
-    if (req.user.is_admin !== 1) {
+    if (!req.user.is_admin) {
       sql += ` AND q.created_by = $${pIdx++}`;
       params.push(req.user.user_id);
     }
@@ -67,7 +67,7 @@ router.get('/:id', async (req, res) => {
     `;
     const params = [req.params.id, req.user.account_id];
     
-    if (req.user.is_admin !== 1) {
+    if (!req.user.is_admin) {
       sql += ' AND q.created_by = $3';
       params.push(req.user.user_id);
     }
