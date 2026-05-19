@@ -4,6 +4,7 @@ import {
   StyleSheet, TextInput, RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '../hooks/useAuth';
 import { getQuotes, deleteQuote } from '../services/api';
 import { Badge, EmptyState, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
@@ -11,6 +12,7 @@ import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 const FILTERS = ['all', 'draft', 'sent', 'accepted', 'declined'];
 
 export default function QuotesScreen({ navigation }) {
+  const { user } = useAuth();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,6 +60,9 @@ export default function QuotesScreen({ navigation }) {
       </View>
       <Text style={styles.clientName}>👤 {item.client_name || 'No client'}</Text>
       {item.site_address && <Text style={styles.address} numberOfLines={1}>📍 {item.site_address}</Text>}
+      {user?.is_admin === 1 && (
+        <Text style={styles.creatorName} numberOfLines={1}>✍️ Created by: {item.creator_name || 'System / Existing'}</Text>
+      )}
       <View style={styles.cardFooter}>
         <Text style={styles.total}>{formatCurrency(item.grand_total)}</Text>
         <Text style={styles.date}>{new Date(item.updated_at).toLocaleDateString('en-AU')}</Text>
@@ -148,6 +153,7 @@ const styles = StyleSheet.create({
   jobName: { ...typography.h3, flex: 1, marginRight: spacing.sm },
   clientName: { color: colors.textSecondary, marginBottom: 2 },
   address: { color: colors.textSecondary, fontSize: 13, marginBottom: spacing.sm },
+  creatorName: { color: colors.secondary, fontSize: 12, fontWeight: '600', marginBottom: spacing.sm },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   total: { fontSize: 18, fontWeight: '700', color: colors.primary },
   date: { color: colors.textSecondary, fontSize: 12 },

@@ -23,13 +23,20 @@ router.get('/', async (req, res) => {
   try {
     const { status, search } = req.query;
     let sql = `
-      SELECT q.*, c.full_name as client_name, c.site_address
+      SELECT q.*, c.full_name as client_name, c.site_address, u.first_name || ' ' || u.last_name as creator_name
       FROM quotes q
       LEFT JOIN clients c ON q.client_id = c.id
+      LEFT JOIN users u ON q.created_by = u.user_id
       WHERE q.account_id = $1
     `;
     const params = [req.user.account_id];
     let pIdx = 2;
+
+    // Non-admin users see only their own quotes
+    if (req.user.is_admin !== 1) {
+      sql += ` AND q.created_by = $${pIdx++}`;
+      params.push(req.user.user_id);
+    }
     
     if (status && status !== 'all') { 
       sql += ` AND q.status = $${pIdx++}`; 
@@ -51,7 +58,21 @@ router.get('/', async (req, res) => {
 // GET /quotes/:id
 router.get('/:id', async (req, res) => {
   try {
-    const quoteRes = await query('SELECT q.*, c.full_name as client_name FROM quotes q LEFT JOIN clients c ON q.client_id = c.id WHERE q.id = $1 AND q.account_id = $2', [req.params.id, req.user.account_id]);
+    let sql = `
+      SELECT q.*, c.full_name as client_name, u.first_name || ' ' || u.last_name as creator_name 
+      FROM quotes q 
+      LEFT JOIN clients c ON q.client_id = c.id 
+      LEFT JOIN users u ON q.created_by = u.user_id 
+      WHERE q.id = $1 AND q.account_id = $2
+    `;
+    const params = [req.params.id, req.user.account_id];
+    
+    if (req.user.is_admin !== 1) {
+      sql += ' AND q.created_by = $3';
+      params.push(req.user.user_id);
+    }
+
+    const quoteRes = await query(sql, params);
     const quote = quoteRes.rows[0];
     if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
@@ -108,9 +129,9 @@ router.post('/', async (req, res) => {
     const grand_total = subtotal + tax_amount;
 
     await client.query('BEGIN');
-    await client.query(`INSERT INTO quotes (id, account_id, client_id, job_name, status, summary_explanation, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, 
-      [id, req.user.account_id, client_id || null, job_name, status, summary_explanation || null, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total]);
+    await client.query(`INSERT INTO quotes (id, account_id, client_id, job_name, status, summary_explanation, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`, 
+      [id, req.user.account_id, client_id || null, job_name, status, summary_explanation || null, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, req.user.user_id]);
 
     for (const t of tasks) {
       await client.query('INSERT INTO quote_tasks (id, quote_id, task_name, task_type, estimated_hours, hourly_rate, price) VALUES ($1, $2, $3, $4, $5, $6, $7)',

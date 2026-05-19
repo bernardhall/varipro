@@ -101,9 +101,23 @@ async function initSchema() {
       tax_amount            DOUBLE PRECISION DEFAULT 0,
       grand_total           DOUBLE PRECISION DEFAULT 0,
       sync_status           TEXT DEFAULT 'synced',
+      created_by            TEXT REFERENCES users(user_id),
       created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Migration: Add created_by to quotes if it doesn't exist, and migrate existing ones
+    DO $$ 
+    BEGIN 
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='quotes' AND column_name='created_by') THEN
+        ALTER TABLE quotes ADD COLUMN created_by TEXT REFERENCES users(user_id);
+      END IF;
+    END $$;
+
+    UPDATE quotes q 
+    SET created_by = (SELECT user_id FROM users u WHERE u.account_id = q.account_id LIMIT 1)
+    WHERE q.created_by IS NULL;
+
 
     CREATE TABLE IF NOT EXISTS quote_tasks (
       id              TEXT PRIMARY KEY,
