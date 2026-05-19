@@ -9,7 +9,7 @@ import { getQuotes, deleteQuote } from '../services/api';
 import { Badge, EmptyState, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
-const FILTERS = ['all', 'draft', 'sent', 'accepted', 'declined'];
+const FILTERS = ['all', 'draft', 'verified', 'sent', 'accepted', 'declined'];
 
 export default function QuotesScreen({ navigation }) {
   const { user } = useAuth();
@@ -62,6 +62,11 @@ export default function QuotesScreen({ navigation }) {
       {item.site_address && <Text style={styles.address} numberOfLines={1}>📍 {item.site_address}</Text>}
       {user?.is_admin === 1 && (
         <Text style={styles.creatorName} numberOfLines={1}>✍️ Created by: {item.creator_name || 'System / Existing'}</Text>
+      )}
+      {item.status === 'verified' && item.verified_by_name && (
+        <Text style={{ color: colors.success, fontSize: 12, fontWeight: '600', marginBottom: spacing.sm }} numberOfLines={1}>
+          ✅ Verified by: {item.verified_by_name}
+        </Text>
       )}
       <View style={styles.cardFooter}>
         <Text style={styles.total}>{formatCurrency(item.grand_total)}</Text>

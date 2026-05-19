@@ -91,7 +91,7 @@ async function initSchema() {
       account_id            TEXT NOT NULL REFERENCES accounts(account_id),
       client_id             TEXT REFERENCES clients(id),
       job_name              TEXT NOT NULL,
-      status                TEXT DEFAULT 'draft' CHECK(status IN ('draft','sent','accepted','declined')),
+      status                TEXT DEFAULT 'draft' CHECK(status IN ('draft','verified','sent','accepted','declined')),
       summary_explanation   TEXT,
       total_labor_hours     DOUBLE PRECISION DEFAULT 0,
       total_material_cost   DOUBLE PRECISION DEFAULT 0,
@@ -102,6 +102,7 @@ async function initSchema() {
       grand_total           DOUBLE PRECISION DEFAULT 0,
       sync_status           TEXT DEFAULT 'synced',
       created_by            TEXT REFERENCES users(user_id),
+      verified_by           TEXT REFERENCES users(user_id),
       created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -112,6 +113,25 @@ async function initSchema() {
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='quotes' AND column_name='created_by') THEN
         ALTER TABLE quotes ADD COLUMN created_by TEXT REFERENCES users(user_id);
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='quotes' AND column_name='verified_by') THEN
+        ALTER TABLE quotes ADD COLUMN verified_by TEXT REFERENCES users(user_id);
+      END IF;
+    END $$;
+
+    -- Migration: Update status CHECK constraint to allow 'verified'
+    DO $$
+    DECLARE
+      constraint_name text;
+    BEGIN
+      SELECT conname INTO constraint_name
+      FROM pg_constraint
+      WHERE conrelid = 'quotes'::regclass AND contype = 'c' AND conname LIKE '%status%';
+
+      IF constraint_name IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE quotes DROP CONSTRAINT ' || constraint_name;
+      END IF;
+
+      ALTER TABLE quotes ADD CONSTRAINT quotes_status_check CHECK(status IN ('draft', 'verified', 'sent', 'accepted', 'declined'));
     END $$;
 
     UPDATE quotes q 

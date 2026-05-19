@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
+import { useAuth } from '../hooks/useAuth';
 import { getQuote, updateQuote, BASE_URL } from '../services/api';
 import { Badge, Card, LoadingScreen, SectionHeader, LineItemRow } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
 
-const STATUSES = ['draft', 'sent', 'accepted', 'declined'];
-
 export default function QuoteDetailScreen({ route, navigation }) {
+  const { user } = useAuth();
   const { quoteId } = route.params;
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,12 +16,32 @@ export default function QuoteDetailScreen({ route, navigation }) {
   }, [quoteId]);
 
   const changeStatus = async (status) => {
-    await updateQuote(quoteId, { status });
-    setQuote(prev => ({ ...prev, status }));
+    try {
+      await updateQuote(quoteId, { status });
+      setQuote(prev => ({ ...prev, status }));
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || error.message);
+    }
   };
 
   const handleStatusChange = () => {
-    Alert.alert('Update Status', 'Set quote status:', STATUSES.map(s => ({
+    const is_admin = user?.is_admin === 1;
+    let allowedStatuses = ['draft'];
+    
+    if (is_admin) {
+      allowedStatuses.push('verified', 'sent', 'accepted', 'declined');
+    } else {
+      // Non-admins can only send if verified
+      if (quote?.verified_by || is_admin) {
+        allowedStatuses.push('sent', 'accepted', 'declined');
+      } else {
+        // Can only stay draft until admin verifies
+        allowedStatuses.push('accepted', 'declined'); // Maybe they can accept/decline externally? But they can't send.
+        // Actually, just let them see the options but omit 'sent' and 'verified'
+      }
+    }
+
+    Alert.alert('Update Status', 'Set quote status:', allowedStatuses.map(s => ({
       text: s.charAt(0).toUpperCase() + s.slice(1),
       onPress: () => changeStatus(s),
     })).concat([{ text: 'Cancel', style: 'cancel' }]));
@@ -48,6 +68,11 @@ export default function QuoteDetailScreen({ route, navigation }) {
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: spacing.sm }}>
           Created {new Date(quote.created_at).toLocaleDateString('en-AU')} · Updated {new Date(quote.updated_at).toLocaleDateString('en-AU')}
         </Text>
+        {quote.status === 'verified' && quote.verified_by_name && (
+          <Text style={{ color: colors.success, fontSize: 12, fontWeight: '600', marginTop: spacing.xs }}>
+            ✅ Verified by {quote.verified_by_name}
+          </Text>
+        )}
       </Card>
 
       {/* Grand Total */}

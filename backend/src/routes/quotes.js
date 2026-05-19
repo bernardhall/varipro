@@ -23,10 +23,11 @@ router.get('/', async (req, res) => {
   try {
     const { status, search } = req.query;
     let sql = `
-      SELECT q.*, c.full_name as client_name, c.site_address, u.first_name || ' ' || u.last_name as creator_name
+      SELECT q.*, c.full_name as client_name, c.site_address, u.first_name || ' ' || u.last_name as creator_name, v.first_name || ' ' || v.last_name as verified_by_name
       FROM quotes q
       LEFT JOIN clients c ON q.client_id = c.id
       LEFT JOIN users u ON q.created_by = u.user_id
+      LEFT JOIN users v ON q.verified_by = v.user_id
       WHERE q.account_id = $1
     `;
     const params = [req.user.account_id];
@@ -59,10 +60,11 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     let sql = `
-      SELECT q.*, c.full_name as client_name, u.first_name || ' ' || u.last_name as creator_name 
+      SELECT q.*, c.full_name as client_name, u.first_name || ' ' || u.last_name as creator_name, v.first_name || ' ' || v.last_name as verified_by_name 
       FROM quotes q 
       LEFT JOIN clients c ON q.client_id = c.id 
       LEFT JOIN users u ON q.created_by = u.user_id 
+      LEFT JOIN users v ON q.verified_by = v.user_id
       WHERE q.id = $1 AND q.account_id = $2
     `;
     const params = [req.params.id, req.user.account_id];
@@ -129,9 +131,18 @@ router.post('/', async (req, res) => {
     const grand_total = subtotal + tax_amount;
 
     await client.query('BEGIN');
-    await client.query(`INSERT INTO quotes (id, account_id, client_id, job_name, status, summary_explanation, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`, 
-      [id, req.user.account_id, client_id || null, job_name, status, summary_explanation || null, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, req.user.user_id]);
+    
+    // Auto-verify if created by admin
+    const is_admin = !!req.user.is_admin;
+    const verified_by = is_admin ? req.user.user_id : null;
+    let initial_status = status;
+    if (is_admin && status === 'draft') {
+       initial_status = 'verified';
+    }
+
+    await client.query(`INSERT INTO quotes (id, account_id, client_id, job_name, status, summary_explanation, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, created_by, verified_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`, 
+      [id, req.user.account_id, client_id || null, job_name, initial_status, summary_explanation || null, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, req.user.user_id, verified_by]);
 
     for (const t of tasks) {
       await client.query('INSERT INTO quote_tasks (id, quote_id, task_name, task_type, estimated_hours, hourly_rate, price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -173,6 +184,26 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Quote not found' });
 
     const { job_name, status, summary_explanation, client_id, tasks, materials, equipment, sundry, higher_costs } = req.body;
+
+    let finalStatus = status || existing.status;
+    let verified_by = existing.verified_by;
+    const is_admin = !!req.user.is_admin;
+
+    // Enforce verification logic when status changes
+    if (status && status !== existing.status) {
+      if (status === 'verified') {
+        if (!is_admin) return res.status(403).json({ error: 'Only administrators can verify quotes' });
+        verified_by = req.user.user_id;
+      }
+      if (status === 'sent') {
+        if (!verified_by && !is_admin) {
+          return res.status(403).json({ error: 'Quote must be verified by an administrator before sending' });
+        }
+        if (is_admin && !verified_by) {
+          verified_by = req.user.user_id;
+        }
+      }
+    }
 
     await client.query('BEGIN');
 
@@ -217,8 +248,8 @@ router.put('/:id', async (req, res) => {
     const tax_amount = subtotal * (tax_rate / 100);
     const grand_total = subtotal + tax_amount;
 
-    await client.query(`UPDATE quotes SET job_name = $1, status = $2, summary_explanation = $3, client_id = $4, total_labor_hours = $5, total_material_cost = $6, total_equipment_cost = $7, total_sundry_cost = $8, total_higher_cost = $9, tax_amount = $10, grand_total = $11, updated_at = CURRENT_TIMESTAMP WHERE id = $12`,
-      [updated.job_name, updated.status, updated.summary_explanation, updated.client_id, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, req.params.id]);
+    await client.query(`UPDATE quotes SET job_name = $1, status = $2, summary_explanation = $3, client_id = $4, total_labor_hours = $5, total_material_cost = $6, total_equipment_cost = $7, total_sundry_cost = $8, total_higher_cost = $9, tax_amount = $10, grand_total = $11, verified_by = $12, updated_at = CURRENT_TIMESTAMP WHERE id = $13`,
+      [updated.job_name, finalStatus, updated.summary_explanation, updated.client_id, total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total, verified_by, req.params.id]);
 
     if (tasks) {
       await client.query('DELETE FROM quote_tasks WHERE quote_id = $1', [req.params.id]);
