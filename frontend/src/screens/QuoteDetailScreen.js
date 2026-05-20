@@ -60,6 +60,7 @@ export default function QuoteDetailScreen({ route, navigation }) {
           <View style={{ flex: 1 }}>
             <Text style={typography.h2}>{quote.job_name}</Text>
             {quote.client_name && <Text style={{ color: colors.textSecondary }}>👤 {quote.client_name}</Text>}
+            <Text style={{ color: colors.secondary, fontSize: 12, fontWeight: '600', marginTop: 2 }}>✍️ Created by: {quote.creator_name || 'System / Existing'}</Text>
           </View>
           <TouchableOpacity onPress={handleStatusChange}>
             <Badge status={quote.status} />
@@ -194,6 +195,15 @@ export default function QuoteDetailScreen({ route, navigation }) {
       >
         <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 16 }}>✏️  Edit Quote</Text>
       </TouchableOpacity>
+
+      {user?.is_admin === 1 && quote.status === 'draft' && !quote.verified_by && (
+        <TouchableOpacity
+          style={{ ...styles.editBtn, borderColor: colors.success, backgroundColor: colors.success, marginTop: spacing.md }}
+          onPress={() => changeStatus('verified')}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>✅ Approve & Verify Quote</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
