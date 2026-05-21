@@ -33,6 +33,7 @@ async function initSchema() {
       default_hourly_rate  DOUBLE PRECISION DEFAULT 75,
       tax_rate             DOUBLE PRECISION DEFAULT 0,
       logo_uri             TEXT,
+      business_name        TEXT,
       tax_reg_number       TEXT,
       address              TEXT,
       email                TEXT,
@@ -67,6 +68,7 @@ async function initSchema() {
       
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='logo_uri') THEN
         ALTER TABLE accounts ADD COLUMN logo_uri TEXT;
+        ALTER TABLE accounts ADD COLUMN business_name TEXT;
         ALTER TABLE accounts ADD COLUMN tax_reg_number TEXT;
         ALTER TABLE accounts ADD COLUMN address TEXT;
         ALTER TABLE accounts ADD COLUMN email TEXT;

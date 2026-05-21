@@ -13,6 +13,7 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
   const [logoUri, setLogoUri] = useState(null);
   
   const [formData, setFormData] = useState({
+    business_name: '',
     tax_reg_number: '',
     address: '',
     email: '',
@@ -34,6 +35,7 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
       const data = await res.json();
       
       setFormData({
+        business_name: data.business_name || user?.account_name || '',
         tax_reg_number: data.tax_reg_number || '',
         address: data.address || '',
         email: data.email || '',
@@ -152,7 +154,18 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
         <SectionHeader title="Business Contact Details" />
         
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tax Registration Number (e.g. ABN / VAT)</Text>
+          <Text style={styles.label}>Business Name</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.business_name}
+            onChangeText={(t) => setFormData({ ...formData, business_name: t })}
+            placeholder="Enter business name"
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Tax Registration Number (e.g. GST/ABN/VAT)</Text>
           <TextInput
             style={styles.input}
             value={formData.tax_reg_number}
