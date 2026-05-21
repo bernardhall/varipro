@@ -25,7 +25,7 @@ export default function QuoteDetailScreen({ route, navigation }) {
   };
 
   const handleStatusChange = () => {
-    const is_admin = user?.is_admin === 1;
+    const is_admin = !!user?.is_admin;
     let allowedStatuses = ['draft'];
     
     if (is_admin) {
@@ -196,7 +196,7 @@ export default function QuoteDetailScreen({ route, navigation }) {
         <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 16 }}>✏️  Edit Quote</Text>
       </TouchableOpacity>
 
-      {user?.is_admin === 1 && quote.status === 'draft' && !quote.verified_by && (
+      {user?.is_admin && quote.status === 'draft' && !quote.verified_by && (
         <TouchableOpacity
           style={{ ...styles.editBtn, borderColor: colors.success, backgroundColor: colors.success, marginTop: spacing.md }}
           onPress={() => changeStatus('verified')}

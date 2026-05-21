@@ -60,7 +60,7 @@ export default function QuotesScreen({ navigation }) {
       </View>
       <Text style={styles.clientName}>👤 {item.client_name || 'No client'}</Text>
       {item.site_address && <Text style={styles.address} numberOfLines={1}>📍 {item.site_address}</Text>}
-      {user?.is_admin === 1 && (
+      {user?.is_admin && (
         <Text style={styles.creatorName} numberOfLines={1}>✍️ Created by: {item.creator_name || 'System / Existing'}</Text>
       )}
       {item.status === 'verified' && item.verified_by_name && (
