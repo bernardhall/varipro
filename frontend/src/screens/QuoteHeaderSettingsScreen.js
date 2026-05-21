@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../hooks/useAuth';
 import { Card, Button, SectionHeader, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
-import { BASE_URL } from '../services/api';
+import api, { BASE_URL } from '../services/api';
 
 export default function QuoteHeaderSettingsScreen({ navigation }) {
   const { user } = useAuth();
@@ -27,12 +27,8 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
 
   const fetchSettings = async () => {
     try {
-      const token = user?.token; // Need token for direct fetch
-      const res = await fetch(`${BASE_URL}/api/account/settings`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to load settings');
-      const data = await res.json();
+      const res = await api.get('/account/settings');
+      const data = res.data;
       
       setFormData({
         business_name: data.business_name || user?.account_name || '',
@@ -80,25 +76,14 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
       const formData = new FormData();
       formData.append('logo', { uri, name: filename, type });
 
-      const res = await fetch(`${BASE_URL}/api/account/settings/logo`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${user?.token}`,
-          // No Content-Type header; fetch handles it with FormData
-        },
-        body: formData,
+      const res = await api.post('/account/settings/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to upload logo');
-      }
-
-      const data = await res.json();
-      setLogoUri(`${BASE_URL}${data.uri}`);
+      setLogoUri(`${BASE_URL}${res.data.uri}`);
       Alert.alert('Success', 'Logo uploaded successfully!');
     } catch (err) {
-      Alert.alert('Error', err.message);
+      Alert.alert('Error', err.response?.data?.error || err.message);
     } finally {
       setSaving(false);
     }
@@ -107,15 +92,7 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const res = await fetch(`${BASE_URL}/api/account/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user?.token}`
-        },
-        body: JSON.stringify(formData)
-      });
-      if (!res.ok) throw new Error('Failed to save settings');
+      await api.put('/account/settings', formData);
       
       Alert.alert('Success', 'Quote header details saved successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
