@@ -53,6 +53,12 @@ export default function SettingsScreen({ navigation }) {
             value="Default Hourly Rate, GST/VAT" 
             onPress={() => navigation.navigate('AccountSettings')} 
           />
+          <SettingRow 
+            icon="🏢" 
+            label="Quote Header Details" 
+            value="Logo, Contact Info, Address" 
+            onPress={() => navigation.navigate('QuoteHeaderSettings')} 
+          />
         </Card>
       )}
 

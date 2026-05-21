@@ -32,6 +32,12 @@ async function initSchema() {
       account_name         TEXT NOT NULL,
       default_hourly_rate  DOUBLE PRECISION DEFAULT 75,
       tax_rate             DOUBLE PRECISION DEFAULT 0,
+      logo_uri             TEXT,
+      tax_reg_number       TEXT,
+      address              TEXT,
+      email                TEXT,
+      phone                TEXT,
+      web_page             TEXT,
       created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -57,6 +63,15 @@ async function initSchema() {
     BEGIN 
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='pin_hash') THEN
         ALTER TABLE users ADD COLUMN pin_hash TEXT;
+      END IF;
+      
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='logo_uri') THEN
+        ALTER TABLE accounts ADD COLUMN logo_uri TEXT;
+        ALTER TABLE accounts ADD COLUMN tax_reg_number TEXT;
+        ALTER TABLE accounts ADD COLUMN address TEXT;
+        ALTER TABLE accounts ADD COLUMN email TEXT;
+        ALTER TABLE accounts ADD COLUMN phone TEXT;
+        ALTER TABLE accounts ADD COLUMN web_page TEXT;
       END IF;
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_confirmed') THEN
         ALTER TABLE users ADD COLUMN is_confirmed INTEGER DEFAULT 0;

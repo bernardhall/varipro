@@ -20,6 +20,7 @@ import ClientsScreen from '../screens/ClientsScreen';
 import UsersScreen from '../screens/UsersScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AccountSettingsScreen from '../screens/AccountSettingsScreen';
+import QuoteHeaderSettingsScreen from '../screens/QuoteHeaderSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -49,6 +50,7 @@ function SettingsStack() {
     <Stack.Navigator>
       <Stack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings', headerStyle: { backgroundColor: colors.surface } }} />
       <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} options={{ title: 'Business Settings', headerStyle: { backgroundColor: colors.surface } }} />
+      <Stack.Screen name="QuoteHeaderSettings" component={QuoteHeaderSettingsScreen} options={{ title: 'Quote Header Details', headerStyle: { backgroundColor: colors.surface } }} />
     </Stack.Navigator>
   );
 }
