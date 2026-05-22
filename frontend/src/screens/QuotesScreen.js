@@ -83,7 +83,7 @@ export default function QuotesScreen({ navigation }) {
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="🔍  Search quotes, users or clients..."
+          placeholder={user?.is_admin ? "🔍  Search quotes, users or clients..." : "🔍  Search quotes or clients..."}
           placeholderTextColor={colors.textSecondary}
           value={search}
           onChangeText={setSearch}
