@@ -189,12 +189,14 @@ export default function QuoteDetailScreen({ route, navigation }) {
         </Card>
       )}
 
-      <TouchableOpacity
-        style={styles.editBtn}
-        onPress={() => navigation.navigate('NewQuote', { editingQuote: quote })}
-      >
-        <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 16 }}>✏️  Edit Quote</Text>
-      </TouchableOpacity>
+      { (user?.is_admin || !quote.verified_by) && (
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => navigation.navigate('NewQuote', { editingQuote: quote })}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 16 }}>✏️  Edit Quote</Text>
+        </TouchableOpacity>
+      )}
 
       {user?.is_admin && quote.status === 'draft' && !quote.verified_by && (
         <TouchableOpacity

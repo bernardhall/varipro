@@ -44,7 +44,7 @@ router.get('/', async (req, res) => {
       params.push(status); 
     }
     if (search) { 
-      sql += ` AND (q.job_name ILIKE $${pIdx} OR c.full_name ILIKE $${pIdx})`; 
+      sql += ` AND (q.job_name ILIKE $${pIdx} OR c.full_name ILIKE $${pIdx} OR CONCAT(u.first_name, ' ', u.last_name) ILIKE $${pIdx})`; 
       params.push(`%${search}%`); 
     }
     sql += ' ORDER BY q.updated_at DESC';
@@ -189,6 +189,10 @@ router.put('/:id', async (req, res) => {
     let verified_by = existing.verified_by;
     const is_admin = !!req.user.is_admin;
 
+    if (!is_admin && existing.verified_by) {
+      return res.status(403).json({ error: 'Verified quotes cannot be updated by non-administrators' });
+    }
+
     // Enforce verification logic when status changes
     if (status && status !== existing.status) {
       if (status === 'verified') {
@@ -288,6 +292,15 @@ router.put('/:id', async (req, res) => {
 // DELETE /quotes/:id
 router.delete('/:id', async (req, res) => {
   try {
+    const quoteRes = await query('SELECT verified_by FROM quotes WHERE id = $1 AND account_id = $2', [req.params.id, req.user.account_id]);
+    if (quoteRes.rowCount === 0) return res.status(404).json({ error: 'Quote not found' });
+    const existing = quoteRes.rows[0];
+
+    const is_admin = !!req.user.is_admin;
+    if (!is_admin && existing.verified_by) {
+      return res.status(403).json({ error: 'Verified quotes cannot be deleted by non-administrators' });
+    }
+
     const result = await query('DELETE FROM quotes WHERE id = $1 AND account_id = $2', [req.params.id, req.user.account_id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Quote not found' });
     res.json({ message: 'Quote deleted' });
@@ -299,8 +312,14 @@ router.delete('/:id', async (req, res) => {
 // POST /quotes/:id/photos
 router.post('/:id/photos', upload.array('photos', 20), async (req, res) => {
   try {
-    const quoteRes = await query('SELECT id FROM quotes WHERE id = $1 AND account_id = $2', [req.params.id, req.user.account_id]);
+    const quoteRes = await query('SELECT id, verified_by FROM quotes WHERE id = $1 AND account_id = $2', [req.params.id, req.user.account_id]);
     if (quoteRes.rowCount === 0) return res.status(404).json({ error: 'Quote not found' });
+    const existing = quoteRes.rows[0];
+
+    const is_admin = !!req.user.is_admin;
+    if (!is_admin && existing.verified_by) {
+      return res.status(403).json({ error: 'Cannot add photos to a verified quote if not an administrator' });
+    }
 
     const inserted = [];
     for (let i = 0; i < req.files.length; i++) {
