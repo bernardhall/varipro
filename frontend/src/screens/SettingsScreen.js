@@ -59,6 +59,12 @@ export default function SettingsScreen({ navigation }) {
             value="Logo, Contact Info, Address" 
             onPress={() => navigation.navigate('QuoteHeaderSettings')} 
           />
+          <SettingRow 
+            icon="📝" 
+            label="Quote Footer Details" 
+            value="Terms and Conditions, Notes" 
+            onPress={() => navigation.navigate('QuoteFooterSettings')} 
+          />
         </Card>
       )}
 

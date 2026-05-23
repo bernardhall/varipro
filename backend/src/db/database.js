@@ -39,6 +39,7 @@ async function initSchema() {
       email                TEXT,
       phone                TEXT,
       web_page             TEXT,
+      quote_footer         TEXT,
       created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -77,6 +78,9 @@ async function initSchema() {
 
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='business_name') THEN
         ALTER TABLE accounts ADD COLUMN business_name TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='quote_footer') THEN
+        ALTER TABLE accounts ADD COLUMN quote_footer TEXT;
       END IF;
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_confirmed') THEN
         ALTER TABLE users ADD COLUMN is_confirmed INTEGER DEFAULT 0;
