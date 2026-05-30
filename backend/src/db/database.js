@@ -97,8 +97,17 @@ async function initSchema() {
       session_id    TEXT PRIMARY KEY,
       user_id       TEXT NOT NULL REFERENCES users(user_id),
       refresh_token TEXT NOT NULL,
-      expires_at    TIMESTAMP NOT NULL
+      expires_at    TIMESTAMP NOT NULL,
+      logged_in     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    DO $$ 
+    BEGIN 
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_sessions' AND column_name='logged_in') THEN
+        ALTER TABLE user_sessions ADD COLUMN logged_in TIMESTAMP;
+        UPDATE user_sessions SET logged_in = expires_at - INTERVAL '7 days';
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS clients (
       id           TEXT PRIMARY KEY,

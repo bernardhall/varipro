@@ -209,8 +209,9 @@ router.post('/login', async (req, res) => {
       { expiresIn: '15m' }
     );
     const refresh_token = uuidv4();
-    const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await query('INSERT INTO user_sessions (session_id, user_id, refresh_token, expires_at) VALUES ($1, $2, $3, $4)', [uuidv4(), user.user_id, refresh_token, expires_at]);
+    const now = new Date();
+    const expires_at = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    await query('INSERT INTO user_sessions (session_id, user_id, refresh_token, expires_at, logged_in) VALUES ($1, $2, $3, $4, $5)', [uuidv4(), user.user_id, refresh_token, expires_at, now]);
 
     res.json({
       token,
