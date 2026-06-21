@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import * as SMS from 'expo-sms';
 import { useAuth } from '../hooks/useAuth';
-import { getAccountSettings, getClient, BASE_URL } from '../services/api';
+import { getAccountSettings, getClient, updateQuote, BASE_URL } from '../services/api';
 import { colors, spacing, radius } from '../utils/theme';
 
 export default function QuotePreviewScreen({ route, navigation }) {
@@ -209,6 +209,13 @@ export default function QuotePreviewScreen({ route, navigation }) {
 
   const handleEmail = async () => {
     try {
+      // Set status to 'sent' on the backend so the client can view it publicly
+      try {
+        await updateQuote(quote.id, { status: 'sent' });
+      } catch (statusErr) {
+        console.warn('Could not update status to sent:', statusErr);
+      }
+
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
 
@@ -237,6 +244,13 @@ export default function QuotePreviewScreen({ route, navigation }) {
 
   const handleSMS = async () => {
     try {
+      // Set status to 'sent' on the backend so the client can view it publicly
+      try {
+        await updateQuote(quote.id, { status: 'sent' });
+      } catch (statusErr) {
+        console.warn('Could not update status to sent:', statusErr);
+      }
+
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       const isAvailable = await SMS.isAvailableAsync();
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
