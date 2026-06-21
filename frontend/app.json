@@ -11,7 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#1A2F50"
     },
-      "ios": {
+    "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.varipro.app",
       "infoPlist": {
@@ -45,7 +45,8 @@
           "cameraPermission": "VariPro needs camera access to take site photos for quotes."
         }
       ],
-      "expo-local-authentication"
+      "expo-local-authentication",
+      "expo-mail-composer"
     ]
   }
 }

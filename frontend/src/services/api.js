@@ -1,5 +1,6 @@
 import axios from 'axios';
 import storage from '../utils/storage';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export const BASE_URL = 'https://varipro-backend.onrender.com'; 
 // When live on Render: const BASE_URL = 'https://varipro-backend.onrender.com';
@@ -57,10 +58,23 @@ export const deleteQuote = (id) => api.delete(`/quotes/${id}`).then(r => r.data)
 export const uploadPhotos = async (quoteId, photoUris) => {
   const formData = new FormData();
   for (const uri of photoUris) {
-    const name = uri.split('/').pop();
+    let uploadUri = uri;
+    try {
+      // Compress the image: resize to max width of 1024px and compress quality to 0.7
+      const manipResult = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      uploadUri = manipResult.uri;
+    } catch (err) {
+      console.warn('Image compression failed, using original uri:', err);
+    }
+
+    const name = uploadUri.split('/').pop();
     const match = /\.(\w+)$/.exec(name);
     const type = match ? `image/${match[1]}` : 'image/jpeg';
-    formData.append('photos', { uri, name, type });
+    formData.append('photos', { uri: uploadUri, name, type });
   }
   return api.post(`/quotes/${quoteId}/photos`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }

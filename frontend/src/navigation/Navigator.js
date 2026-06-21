@@ -15,6 +15,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 // App screens
 import QuotesScreen from '../screens/QuotesScreen';
 import QuoteDetailScreen from '../screens/QuoteDetailScreen';
+import QuotePreviewScreen from '../screens/QuotePreviewScreen';
 import NewQuoteScreen from '../screens/NewQuoteScreen';
 import ClientsScreen from '../screens/ClientsScreen';
 import UsersScreen from '../screens/UsersScreen';
@@ -41,6 +42,7 @@ function QuotesStack() {
     <Stack.Navigator>
       <Stack.Screen name="Quotes" component={QuotesScreen} options={{ title: 'Quotes', headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { fontWeight: '700' } }} />
       <Stack.Screen name="QuoteDetail" component={QuoteDetailScreen} options={{ title: 'Quote Detail', headerStyle: { backgroundColor: colors.surface } }} />
+      <Stack.Screen name="QuotePreview" component={QuotePreviewScreen} options={{ title: 'Preview PDF', headerStyle: { backgroundColor: colors.surface } }} />
       <Stack.Screen name="NewQuote" component={NewQuoteScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );

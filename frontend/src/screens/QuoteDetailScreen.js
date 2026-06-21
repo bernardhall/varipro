@@ -198,6 +198,13 @@ export default function QuoteDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity
+        style={{ ...styles.editBtn, borderColor: colors.secondary, marginTop: spacing.sm }}
+        onPress={() => navigation.navigate('QuotePreview', { quote })}
+      >
+        <Text style={{ color: colors.secondary, fontWeight: '700', fontSize: 16 }}>📄 Preview & Generate PDF</Text>
+      </TouchableOpacity>
+
       {user?.is_admin && quote.status === 'draft' && !quote.verified_by && (
         <TouchableOpacity
           style={{ ...styles.editBtn, borderColor: colors.success, backgroundColor: colors.success, marginTop: spacing.md }}

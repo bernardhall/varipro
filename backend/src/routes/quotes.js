@@ -16,6 +16,63 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// ─── PUBLIC PORTAL ENDPOINTS ───
+// These do not require authentication so clients can view and accept quotes.
+
+router.get('/public/:id', async (req, res) => {
+  try {
+    const quoteRes = await query(`
+      SELECT q.*, c.full_name as client_name, c.site_address, c.email as client_email, c.phone as client_phone,
+             a.business_name, a.logo_uri, a.tax_reg_number, a.address as business_address, a.email as business_email, 
+             a.phone as business_phone, a.web_page, a.quote_footer, a.tax_rate
+      FROM quotes q
+      LEFT JOIN clients c ON q.client_id = c.id
+      LEFT JOIN accounts a ON q.account_id = a.account_id
+      WHERE q.id = $1
+    `, [req.params.id]);
+    
+    const quote = quoteRes.rows[0];
+    if (!quote) return res.status(404).json({ error: 'Quote not found' });
+    
+    if (quote.status === 'draft' || quote.status === 'verified') {
+      return res.status(403).json({ error: 'Quote is not yet available for review.' });
+    }
+
+    quote.tasks = (await query('SELECT * FROM quote_tasks WHERE quote_id = $1', [req.params.id])).rows;
+    quote.materials = (await query('SELECT * FROM quote_materials WHERE quote_id = $1', [req.params.id])).rows;
+    quote.equipment = (await query('SELECT * FROM quote_equipment WHERE quote_id = $1', [req.params.id])).rows;
+    quote.sundry = (await query('SELECT * FROM quote_sundry WHERE quote_id = $1', [req.params.id])).rows;
+    quote.higher_costs = (await query('SELECT * FROM quote_higher_costs WHERE quote_id = $1', [req.params.id])).rows;
+    quote.photos = (await query('SELECT * FROM quote_photos WHERE quote_id = $1 ORDER BY sort_order', [req.params.id])).rows;
+
+    res.json(quote);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/public/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (status !== 'accepted' && status !== 'declined') {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const checkRes = await query('SELECT status FROM quotes WHERE id = $1', [req.params.id]);
+    const quote = checkRes.rows[0];
+    if (!quote) return res.status(404).json({ error: 'Quote not found' });
+    
+    if (quote.status === 'draft' || quote.status === 'verified') {
+      return res.status(403).json({ error: 'Quote is not active yet.' });
+    }
+
+    await query('UPDATE quotes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [status, req.params.id]);
+    res.json({ message: `Quote successfully ${status}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.use(authMiddleware);
 
 // GET /quotes
