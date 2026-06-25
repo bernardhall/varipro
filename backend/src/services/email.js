@@ -42,4 +42,44 @@ async function sendConfirmationEmail(email, name, token) {
   }
 }
 
-module.exports = { sendConfirmationEmail };
+async function sendQuoteNotificationEmail(toEmail, creatorName, quote, status, clientName, comments) {
+  if (!resend) {
+    console.error(`[Email] Cannot send quote notification email - RESEND_API_KEY is missing.`);
+    return null;
+  }
+
+  const actionText = status === 'accepted' ? 'ACCEPTED ✅' : 'DECLINED ❌';
+  const subject = `Quote ${actionText}: ${quote.job_name}`;
+
+  try {
+    const data = await resend.emails.send({
+      from: 'VariPro <onboarding@resend.dev>', // In production, can be changed to your verified domain (e.g. quotes@myvaripro.com)
+      to: toEmail,
+      subject: subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: ${status === 'accepted' ? '#059669' : '#dc2626'}; margin-top: 0;">Quote ${status === 'accepted' ? 'Accepted' : 'Declined'}</h2>
+          <p>Hi ${creatorName},</p>
+          <p>Your client <strong>${clientName || 'N/A'}</strong> has <strong>${status}</strong> the quote for <strong>${quote.job_name}</strong>.</p>
+          
+          <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0; border: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 8px 0;"><strong>Job:</strong> ${quote.job_name}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Total Value:</strong> $${(quote.grand_total || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            ${comments ? `<p style="margin: 8px 0 0 0; font-style: italic;"><strong>Client Comments:</strong> "${comments}"</p>` : ''}
+          </div>
+          
+          <p>You can check the quote details and manage the job inside your VariPro app.</p>
+          <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+          <p style="font-size: 12px; color: #a0aec0;">VariPro Notification System</p>
+        </div>
+      `,
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Failed to send quote notification email', error);
+    throw error;
+  }
+}
+
+module.exports = { sendConfirmationEmail, sendQuoteNotificationEmail };

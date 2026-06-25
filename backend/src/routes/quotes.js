@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { query, pool } = require('../db/database');
 const { authMiddleware } = require('../middleware/auth');
+const { sendQuoteNotificationEmail } = require('../services/email');
 
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -53,12 +54,18 @@ router.get('/public/:id', async (req, res) => {
 
 router.post('/public/:id/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, clientName, comments } = req.body;
     if (status !== 'accepted' && status !== 'declined') {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const checkRes = await query('SELECT status FROM quotes WHERE id = $1', [req.params.id]);
+    const checkRes = await query(`
+      SELECT q.status, q.job_name, q.grand_total, u.email as creator_email, u.first_name as creator_name
+      FROM quotes q
+      LEFT JOIN users u ON q.created_by = u.user_id
+      WHERE q.id = $1
+    `, [req.params.id]);
+    
     const quote = checkRes.rows[0];
     if (!quote) return res.status(404).json({ error: 'Quote not found' });
     
@@ -66,7 +73,23 @@ router.post('/public/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Quote is not active yet.' });
     }
 
+    // Update status in database
     await query('UPDATE quotes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [status, req.params.id]);
+
+    // Send email notification to creator/contractor in background
+    if (quote.creator_email) {
+      sendQuoteNotificationEmail(
+        quote.creator_email,
+        quote.creator_name || 'there',
+        quote,
+        status,
+        clientName,
+        comments
+      ).catch(emailErr => console.error('Failed to send notification email:', emailErr));
+    } else {
+      console.warn(`[Notification] No creator email found for quote ${req.params.id}. Skipping email.`);
+    }
+
     res.json({ message: `Quote successfully ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
