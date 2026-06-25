@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../hooks/useAuth';
 import { Card, Button, SectionHeader, LoadingScreen } from '../components/UI';
 import { colors, spacing, typography, radius } from '../utils/theme';
@@ -69,12 +70,26 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
   const uploadLogo = async (uri) => {
     try {
       setSaving(true);
-      const filename = uri.split('/').pop();
+      
+      let uploadUri = uri;
+      try {
+        // Compress logo: resize to max width of 500px and compress quality to 0.7
+        const manipResult = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 500 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        uploadUri = manipResult.uri;
+      } catch (err) {
+        console.warn('Logo compression failed, uploading original:', err);
+      }
+
+      const filename = uploadUri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`;
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
 
       const formData = new FormData();
-      formData.append('logo', { uri, name: filename, type });
+      formData.append('logo', { uri: uploadUri, name: filename, type });
 
       const res = await api.post('/account/settings/logo', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
