@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth');
 const quotesRoutes = require('./routes/quotes');
 const accountsRoutes = require('./routes/accounts');
 const clientsUsersRoutes = require('./routes/clientsUsers');
+const timesheetRoutes = require('./routes/timesheets');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 app.use('/auth', authRoutes);
 app.use('/quotes', quotesRoutes);
 app.use('/account', accountsRoutes);
+app.use('/timesheets', timesheetRoutes);
 app.use('/', clientsUsersRoutes);
 
 // 404

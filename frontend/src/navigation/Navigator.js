@@ -23,6 +23,8 @@ import SettingsScreen from '../screens/SettingsScreen';
 import AccountSettingsScreen from '../screens/AccountSettingsScreen';
 import QuoteHeaderSettingsScreen from '../screens/QuoteHeaderSettingsScreen';
 import QuoteFooterSettingsScreen from '../screens/QuoteFooterSettingsScreen';
+import TimesheetScreen from '../screens/TimesheetScreen';
+import MenuScreen from '../screens/MenuScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -48,9 +50,12 @@ function QuotesStack() {
   );
 }
 
-function SettingsStack() {
+function MoreStack() {
   return (
     <Stack.Navigator>
+      <Stack.Screen name="Menu" component={MenuScreen} options={{ title: 'More Options', headerStyle: { backgroundColor: colors.surface }, headerTitleStyle: { fontWeight: '700' } }} />
+      <Stack.Screen name="Clients" component={ClientsScreen} options={{ title: 'Clients', headerStyle: { backgroundColor: colors.surface } }} />
+      <Stack.Screen name="Users" component={UsersScreen} options={{ title: 'Team Settings', headerStyle: { backgroundColor: colors.surface } }} />
       <Stack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings', headerStyle: { backgroundColor: colors.surface } }} />
       <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} options={{ title: 'Business Settings', headerStyle: { backgroundColor: colors.surface } }} />
       <Stack.Screen name="QuoteHeaderSettings" component={QuoteHeaderSettingsScreen} options={{ title: 'Quote Header Details', headerStyle: { backgroundColor: colors.surface } }} />
@@ -68,7 +73,7 @@ function TabIcon({ emoji, focused }) {
 }
 
 function AppNavigator() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -103,21 +108,14 @@ function AppNavigator() {
         options={{ headerShown: false, title: 'Quotes', tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} /> }}
       />
       <Tab.Screen
-        name="Clients"
-        component={ClientsScreen}
-        options={{ title: 'Clients', tabBarIcon: ({ focused }) => <TabIcon emoji="👥" focused={focused} /> }}
+        name="Timesheet"
+        component={TimesheetScreen}
+        options={{ title: 'Timesheet', tabBarIcon: ({ focused }) => <TabIcon emoji="⏱️" focused={focused} /> }}
       />
-      {user?.is_admin && (
-        <Tab.Screen
-          name="Users"
-          component={UsersScreen}
-          options={{ title: 'Team', tabBarIcon: ({ focused }) => <TabIcon emoji="🧑‍💼" focused={focused} /> }}
-        />
-      )}
       <Tab.Screen
-        name="SettingsTab"
-        component={SettingsStack}
-        options={{ headerShown: false, title: 'Settings', tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused} /> }}
+        name="MoreTab"
+        component={MoreStack}
+        options={{ headerShown: false, title: 'More', tabBarIcon: ({ focused }) => <TabIcon emoji="➕" focused={focused} /> }}
       />
       <Tab.Screen
         name="Logout"

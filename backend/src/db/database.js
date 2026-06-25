@@ -223,10 +223,33 @@ async function initSchema() {
       sync_status TEXT DEFAULT 'pending'
     );
 
+    CREATE TABLE IF NOT EXISTS timesheet_entries (
+      id           TEXT PRIMARY KEY,
+      account_id   TEXT NOT NULL REFERENCES accounts(account_id),
+      user_id      TEXT NOT NULL REFERENCES users(user_id),
+      quote_id     TEXT NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+      task_name    TEXT,
+      notes        TEXT,
+      status       TEXT DEFAULT 'working' CHECK(status IN ('working', 'paused', 'stopped')),
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS timesheet_events (
+      id           TEXT PRIMARY KEY,
+      timesheet_id TEXT NOT NULL REFERENCES timesheet_entries(id) ON DELETE CASCADE,
+      event_type   TEXT NOT NULL CHECK(event_type IN ('start', 'pause', 'resume', 'stop')),
+      latitude     DOUBLE PRECISION,
+      longitude    DOUBLE PRECISION,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_quotes_account_status ON quotes(account_id, status);
     CREATE INDEX IF NOT EXISTS idx_quotes_client ON quotes(client_id);
     CREATE INDEX IF NOT EXISTS idx_users_login ON users(login_name);
     CREATE INDEX IF NOT EXISTS idx_accounts_number ON accounts(account_number);
+    CREATE INDEX IF NOT EXISTS idx_timesheets_user ON timesheet_entries(user_id);
+    CREATE INDEX IF NOT EXISTS idx_timesheet_events ON timesheet_events(timesheet_id);
   `);
 }
 
