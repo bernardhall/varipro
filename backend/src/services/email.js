@@ -18,7 +18,7 @@ async function sendConfirmationEmail(email, name, token) {
 
   try {
     const data = await resend.emails.send({
-      from: 'VariPro <onboarding@resend.dev>', // In production, use your own domain
+      from: process.env.RESEND_FROM_EMAIL || 'VariPro <onboarding@resend.dev>',
       to: email,
       subject: 'Welcome to VariPro! Please confirm your email',
       html: `
@@ -53,7 +53,7 @@ async function sendQuoteNotificationEmail(toEmail, creatorName, quote, status, c
 
   try {
     const data = await resend.emails.send({
-      from: 'VariPro <onboarding@resend.dev>', // In production, can be changed to your verified domain (e.g. quotes@myvaripro.com)
+      from: process.env.RESEND_FROM_EMAIL || 'VariPro <onboarding@resend.dev>',
       to: toEmail,
       subject: subject,
       html: `
