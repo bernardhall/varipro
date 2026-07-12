@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { query, pool } = require('../db/database');
 const { authMiddleware } = require('../middleware/auth');
-const { sendQuoteNotificationEmail } = require('../services/email');
+const { sendQuoteNotificationEmail, sendContractorCopyEmail } = require('../services/email');
 
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -410,6 +410,30 @@ router.post('/:id/photos', upload.array('photos', 20), async (req, res) => {
       inserted.push({ id: photo_id, image_uri: uri });
     }
     res.status(201).json(inserted);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /quotes/:id/record-send
+router.post('/:id/record-send', express.json({ limit: '10mb' }), async (req, res) => {
+  try {
+    const { method, recipient, messageBody, pdfBase64 } = req.body;
+    
+    // Get quote details to pass to email
+    const quoteRes = await query('SELECT * FROM quotes WHERE id = $1 AND account_id = $2', [req.params.id, req.user.account_id]);
+    if (quoteRes.rowCount === 0) return res.status(404).json({ error: 'Quote not found' });
+    const quote = quoteRes.rows[0];
+
+    // Contractor email must be fetched from DB because it's not in the JWT token
+    const userRes = await query('SELECT email FROM users WHERE user_id = $1', [req.user.user_id]);
+    const contractorEmail = userRes.rowCount > 0 ? userRes.rows[0].email : null;
+
+    if (contractorEmail && pdfBase64) {
+      await sendContractorCopyEmail(contractorEmail, quote, method, recipient, messageBody, pdfBase64);
+    }
+    
+    res.json({ message: 'Record sent successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -54,6 +54,7 @@ export const getQuote = (id) => api.get(`/quotes/${id}`).then(r => r.data);
 export const createQuote = (payload) => api.post('/quotes', payload).then(r => r.data);
 export const updateQuote = (id, payload) => api.put(`/quotes/${id}`, payload).then(r => r.data);
 export const deleteQuote = (id) => api.delete(`/quotes/${id}`).then(r => r.data);
+export const recordQuoteSend = (id, payload) => api.post(`/quotes/${id}/record-send`, payload).then(r => r.data);
 
 export const uploadPhotos = async (quoteId, photoUris) => {
   const formData = new FormData();

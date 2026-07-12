@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import * as SMS from 'expo-sms';
 import { useAuth } from '../hooks/useAuth';
-import { getAccountSettings, getClient, updateQuote, BASE_URL } from '../services/api';
+import { getAccountSettings, getClient, updateQuote, recordQuoteSend, BASE_URL } from '../services/api';
 import { colors, spacing, radius } from '../utils/theme';
 
 export default function QuotePreviewScreen({ route, navigation }) {
@@ -14,6 +14,7 @@ export default function QuotePreviewScreen({ route, navigation }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [htmlContent, setHtmlContent] = useState('');
+  const [clientData, setClientData] = useState(null);
   
   useEffect(() => {
     generateHtml();
@@ -26,6 +27,7 @@ export default function QuotePreviewScreen({ route, navigation }) {
       let client = null;
       if (quote.client_id) {
         client = await getClient(quote.client_id);
+        setClientData(client);
       }
 
       const fmt = (n) => `$${(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -216,7 +218,7 @@ export default function QuotePreviewScreen({ route, navigation }) {
         console.warn('Could not update status to sent:', statusErr);
       }
 
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
 
       const emailHtml = `
@@ -231,12 +233,28 @@ export default function QuotePreviewScreen({ route, navigation }) {
         </div>
       `;
 
-      await MailComposer.composeAsync({
+      const intendedRecipient = clientData?.email || quote.client_email || '';
+
+      const composeResult = await MailComposer.composeAsync({
+        recipients: intendedRecipient ? [intendedRecipient] : [],
         subject: `Quote: ${quote.job_name}`,
         body: emailHtml,
         isHtml: true,
         attachments: [uri],
       });
+
+      if (composeResult.status === 'sent' || composeResult.status === 'saved' || composeResult.status === 'undetermined') {
+        try {
+          await recordQuoteSend(quote.id, {
+            method: 'email',
+            recipient: intendedRecipient,
+            messageBody: emailHtml,
+            pdfBase64: base64
+          });
+        } catch (err) {
+          console.warn('Could not record send:', err);
+        }
+      }
     } catch (err) {
       Alert.alert('Error', err.message);
     }
@@ -251,16 +269,32 @@ export default function QuotePreviewScreen({ route, navigation }) {
         console.warn('Could not update status to sent:', statusErr);
       }
 
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
       const isAvailable = await SMS.isAvailableAsync();
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
       
       if (isAvailable) {
-        await SMS.sendSMSAsync(
-          [],
-          `Hi ${quote.client_name || ''}, here is the quote for ${quote.job_name}. Review the attached PDF or view online here: ${portalLink}`,
+        const intendedPhone = clientData?.phone || quote.client_phone || '';
+        const smsMessage = `Hi ${quote.client_name || ''}, here is the quote for ${quote.job_name}. Review the attached PDF or view online here: ${portalLink}`;
+        
+        const { result } = await SMS.sendSMSAsync(
+          intendedPhone ? [intendedPhone] : [],
+          smsMessage,
           { attachments: { uri, mimeType: 'application/pdf', filename: `Quote_${quote.job_name.replace(/ /g, '_')}.pdf` } }
         );
+
+        if (result === 'sent' || result === 'unknown') {
+          try {
+            await recordQuoteSend(quote.id, {
+              method: 'sms',
+              recipient: intendedPhone,
+              messageBody: smsMessage,
+              pdfBase64: base64
+            });
+          } catch (err) {
+            console.warn('Could not record send:', err);
+          }
+        }
       } else {
         Alert.alert('Error', 'SMS is not available on this device');
       }
@@ -281,15 +315,23 @@ export default function QuotePreviewScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.btnSecondary} onPress={handlePrint}>
-          <Text style={styles.btnSecondaryText}>🖨️ Print</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ ...styles.btnPrimary, backgroundColor: '#007AFF' }} onPress={handleSMS}>
-          <Text style={styles.btnPrimaryText}>💬 SMS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btnPrimary} onPress={handleEmail}>
-          <Text style={styles.btnPrimaryText}>📧 Email Quote</Text>
-        </TouchableOpacity>
+        <View style={styles.actionItem}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={handlePrint}>
+            <Text style={styles.btnSecondaryText}>🖨️ Print</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.actionItem}>
+          <TouchableOpacity style={{ ...styles.btnPrimary, backgroundColor: '#007AFF' }} onPress={handleSMS}>
+            <Text style={styles.btnPrimaryText}>💬 SMS</Text>
+          </TouchableOpacity>
+          {(clientData?.phone || quote.client_phone) ? <Text style={styles.contactHint}>{clientData?.phone || quote.client_phone}</Text> : null}
+        </View>
+        <View style={styles.actionItem}>
+          <TouchableOpacity style={styles.btnPrimary} onPress={handleEmail}>
+            <Text style={styles.btnPrimaryText}>📧 Email Quote</Text>
+          </TouchableOpacity>
+          {(clientData?.email || quote.client_email) ? <Text style={styles.contactHint}>{clientData?.email || quote.client_email}</Text> : null}
+        </View>
       </View>
       <View style={styles.webviewContainer}>
         <WebView 
@@ -358,5 +400,14 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     backgroundColor: '#fff',
+  },
+  actionItem: {
+    alignItems: 'center',
+    gap: 4
+  },
+  contactHint: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center'
   }
 });

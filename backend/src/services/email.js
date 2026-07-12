@@ -82,4 +82,51 @@ async function sendQuoteNotificationEmail(toEmail, creatorName, quote, status, c
   }
 }
 
-module.exports = { sendConfirmationEmail, sendQuoteNotificationEmail };
+async function sendContractorCopyEmail(contractorEmail, quote, method, recipient, messageBody, pdfBase64) {
+  if (!resend) {
+    console.error(`[Email] Cannot send contractor copy email - RESEND_API_KEY is missing.`);
+    return null;
+  }
+
+  const subject = `Quote Sent Copy: ${quote.job_name}`;
+
+  try {
+    const data = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'VariPro <onboarding@resend.dev>',
+      to: contractorEmail,
+      subject: subject,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #1a365d; margin-top: 0;">Quote Sent Notification</h2>
+          <p>A quote was just sent from your VariPro account.</p>
+          
+          <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0; border: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 8px 0;"><strong>Job:</strong> ${quote.job_name}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Method:</strong> ${method.toUpperCase()}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Sent To:</strong> ${recipient || 'Unknown'}</p>
+          </div>
+
+          <p><strong>Message Sent:</strong></p>
+          <blockquote style="margin: 10px 0; padding: 10px 15px; border-left: 4px solid #cbd5e1; background-color: #f1f5f9; color: #334155; white-space: pre-wrap;">${messageBody}</blockquote>
+          
+          <p>A copy of the PDF that was attached is included with this email.</p>
+          <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;">
+          <p style="font-size: 12px; color: #a0aec0;">VariPro Notification System</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: `Quote_${quote.job_name.replace(/ /g, '_')}.pdf`,
+          content: pdfBase64,
+        }
+      ]
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Failed to send contractor copy email', error);
+    throw error;
+  }
+}
+
+module.exports = { sendConfirmationEmail, sendQuoteNotificationEmail, sendContractorCopyEmail };
