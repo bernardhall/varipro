@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { query, pool } = require('../db/database');
 const { authMiddleware } = require('../middleware/auth');
-const { sendQuoteNotificationEmail, sendContractorCopyEmail } = require('../services/email');
+const { sendQuoteNotificationEmail, sendContractorCopyEmail, sendClientQuoteStatusEmail } = require('../services/email');
 
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -60,9 +60,10 @@ router.post('/public/:id/status', async (req, res) => {
     }
 
     const checkRes = await query(`
-      SELECT q.status, q.job_name, q.grand_total, u.email as creator_email, u.first_name as creator_name
+      SELECT q.status, q.job_name, q.grand_total, u.email as creator_email, u.first_name as creator_name, c.email as client_email
       FROM quotes q
       LEFT JOIN users u ON q.created_by = u.user_id
+      LEFT JOIN clients c ON q.client_id = c.id
       WHERE q.id = $1
     `, [req.params.id]);
     
@@ -88,6 +89,17 @@ router.post('/public/:id/status', async (req, res) => {
       ).catch(emailErr => console.error('Failed to send notification email:', emailErr));
     } else {
       console.warn(`[Notification] No creator email found for quote ${req.params.id}. Skipping email.`);
+    }
+
+    if (quote.client_email) {
+      sendClientQuoteStatusEmail(
+        quote.client_email,
+        clientName,
+        quote,
+        status
+      ).catch(emailErr => console.error('Failed to send client notification email:', emailErr));
+    } else {
+      console.warn(`[Notification] No client email found for quote ${req.params.id}. Skipping client email.`);
     }
 
     res.json({ message: `Quote successfully ${status}` });
