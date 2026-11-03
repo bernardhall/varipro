@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import storage from '../utils/storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -60,26 +61,40 @@ export const uploadPhotos = async (quoteId, photoUris) => {
   const formData = new FormData();
   for (const uri of photoUris) {
     let uploadUri = uri;
-    try {
-      // Compress the image: resize to max width of 1024px and compress quality to 0.7
-      const manipResult = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      uploadUri = manipResult.uri;
-    } catch (err) {
-      console.warn('Image compression failed, using original uri:', err);
+    if (Platform.OS !== 'web') {
+      try {
+        // Compress the image: resize to max width of 1024px and compress quality to 0.7
+        const manipResult = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        uploadUri = manipResult.uri;
+      } catch (err) {
+        console.warn('Image compression failed, using original uri:', err);
+      }
     }
 
-    const name = uploadUri.split('/').pop();
+    const name = uploadUri.split('/').pop() || 'photo.jpg';
     const match = /\.(\w+)$/.exec(name);
     const type = match ? `image/${match[1]}` : 'image/jpeg';
-    formData.append('photos', { uri: uploadUri, name, type });
+
+    if (Platform.OS === 'web') {
+      try {
+        const response = await fetch(uploadUri);
+        const blob = await response.blob();
+        const filename = name.includes('.') ? name : `${name}.jpg`;
+        formData.append('photos', blob, filename);
+      } catch (fetchErr) {
+        console.error('Failed to convert photo to blob on web:', fetchErr);
+      }
+    } else {
+      formData.append('photos', { uri: uploadUri, name, type });
+    }
   }
-  return api.post(`/quotes/${quoteId}/photos`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(r => r.data);
+
+  const headers = Platform.OS === 'web' ? {} : { 'Content-Type': 'multipart/form-data' };
+  return api.post(`/quotes/${quoteId}/photos`, formData, { headers }).then(r => r.data);
 };
 
 // ── Clients ───────────────────────────────────────────────────────────────

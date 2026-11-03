@@ -414,8 +414,9 @@ router.post('/:id/photos', upload.array('photos', 20), async (req, res) => {
     }
 
     const inserted = [];
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
+    const files = req.files || [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const photo_id = uuidv4();
       const uri = `/uploads/${file.filename}`;
       await query('INSERT INTO quote_photos (id, quote_id, image_uri, sort_order, sync_status) VALUES ($1, $2, $3, $4, $5)', [photo_id, req.params.id, uri, i, 'synced']);

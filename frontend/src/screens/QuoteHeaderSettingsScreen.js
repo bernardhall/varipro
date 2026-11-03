@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Image, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../hooks/useAuth';
@@ -84,16 +84,21 @@ export default function QuoteHeaderSettingsScreen({ navigation }) {
         console.warn('Logo compression failed, uploading original:', err);
       }
 
-      const filename = uploadUri.split('/').pop();
+      const filename = uploadUri.split('/').pop() || 'logo.jpg';
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
 
       const formData = new FormData();
-      formData.append('logo', { uri: uploadUri, name: filename, type });
+      if (Platform.OS === 'web') {
+        const response = await fetch(uploadUri);
+        const blob = await response.blob();
+        formData.append('logo', blob, filename.includes('.') ? filename : `${filename}.jpg`);
+      } else {
+        formData.append('logo', { uri: uploadUri, name: filename, type });
+      }
 
-      const res = await api.post('/account/settings/logo', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const headers = Platform.OS === 'web' ? {} : { 'Content-Type': 'multipart/form-data' };
+      const res = await api.post('/account/settings/logo', formData, { headers });
 
       setLogoUri(`${BASE_URL}${res.data.uri}`);
       Alert.alert('Success', 'Logo uploaded successfully!');

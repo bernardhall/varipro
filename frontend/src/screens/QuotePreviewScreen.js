@@ -201,11 +201,20 @@ export default function QuotePreviewScreen({ route, navigation }) {
 
   const handlePrint = async () => {
     if (Platform.OS === 'web') {
-      const iframe = document.getElementById('quote-preview-iframe');
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-        return;
+      try {
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.open();
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+          }, 350);
+          return;
+        }
+      } catch (err) {
+        console.warn('Print window failed:', err);
       }
       window.print();
       return;
@@ -221,13 +230,6 @@ export default function QuotePreviewScreen({ route, navigation }) {
 
   const handleEmail = async () => {
     try {
-      // Set status to 'sent' on the backend so the client can view it publicly
-      try {
-        await updateQuote(quote.id, { status: 'sent' });
-      } catch (statusErr) {
-        console.warn('Could not update status to sent:', statusErr);
-      }
-
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
       const intendedRecipient = clientData?.email || quote.client_email || '';
 
@@ -239,8 +241,25 @@ export default function QuotePreviewScreen({ route, navigation }) {
           `You can review and approve it online here:\n${portalLink}\n\n` +
           `Thanks,\n${user?.first_name || 'Your Provider'}`
         );
-        window.open(`mailto:${intendedRecipient}?subject=${subject}&body=${body}`, '_blank');
+        const mailUrl = `mailto:${intendedRecipient}?subject=${subject}&body=${body}`;
+
+        // Trigger via link click directly in the click context to avoid popup blockers
+        const a = document.createElement('a');
+        a.href = mailUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Update status in background
+        updateQuote(quote.id, { status: 'sent' }).catch(err => console.warn('Could not update status to sent:', err));
         return;
+      }
+
+      // Set status to 'sent' on the backend so the client can view it publicly
+      try {
+        await updateQuote(quote.id, { status: 'sent' });
+      } catch (statusErr) {
+        console.warn('Could not update status to sent:', statusErr);
       }
 
       const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
@@ -284,20 +303,32 @@ export default function QuotePreviewScreen({ route, navigation }) {
 
   const handleSMS = async () => {
     try {
-      // Set status to 'sent' on the backend so the client can view it publicly
-      try {
-        await updateQuote(quote.id, { status: 'sent' });
-      } catch (statusErr) {
-        console.warn('Could not update status to sent:', statusErr);
-      }
-
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
       const intendedPhone = clientData?.phone || quote.client_phone || '';
       const smsMessage = `Hi ${quote.client_name || ''}, here is the quote for ${quote.job_name}. Review it online here: ${portalLink}`;
 
       if (Platform.OS === 'web') {
-        window.open(`sms:${intendedPhone}?&body=${encodeURIComponent(smsMessage)}`, '_blank');
+        const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const sep = isIOS ? '&' : '?';
+        const smsUrl = `sms:${intendedPhone}${sep}body=${encodeURIComponent(smsMessage)}`;
+
+        // Trigger via link click directly in the click context to avoid popup blockers
+        const a = document.createElement('a');
+        a.href = smsUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Update status in background
+        updateQuote(quote.id, { status: 'sent' }).catch(err => console.warn('Could not update status to sent:', err));
         return;
+      }
+
+      // Set status to 'sent' on the backend so the client can view it publicly
+      try {
+        await updateQuote(quote.id, { status: 'sent' });
+      } catch (statusErr) {
+        console.warn('Could not update status to sent:', statusErr);
       }
 
       const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
