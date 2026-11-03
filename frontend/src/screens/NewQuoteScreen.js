@@ -107,7 +107,7 @@ export default function NewQuoteScreen({ navigation, route }) {
   };
 
   // List helpers
-  const addRow = (setter) => setter(prev => [...prev, {}]);
+  const addRow = (setter, defaultObj = {}) => setter(prev => [...prev, defaultObj]);
   const removeRow = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
   const updateRow = (setter, idx, key, val) => setter(prev => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
 
@@ -448,13 +448,56 @@ export default function NewQuoteScreen({ navigation, route }) {
 
             {activeTab === 'materials' && (
               <>
-                <SectionHeader title="Materials" action="+ Add" onAction={() => addRow(setMaterials)} />
+                <SectionHeader title="Materials" action="+ Add" onAction={() => addRow(setMaterials, { item_name: '', quantity: '', unit_cost: '' })} />
                 {materials.map((m, i) => (
-                  <View key={i} style={styles.lineRow}>
-                    <TextInput style={[styles.lineInput, { flex: 2 }]} placeholder="Item" placeholderTextColor={colors.textSecondary} value={m.item_name} onChangeText={v => updateRow(setMaterials, i, 'item_name', v)} />
-                    <TextInput style={[styles.lineInput, { flex: 0.8 }]} placeholder="Qty" placeholderTextColor={colors.textSecondary} value={m.quantity} onChangeText={v => updateRow(setMaterials, i, 'quantity', v)} keyboardType="decimal-pad" />
-                    <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="$/unit" placeholderTextColor={colors.textSecondary} value={m.unit_cost} onChangeText={v => updateRow(setMaterials, i, 'unit_cost', v)} keyboardType="decimal-pad" />
-                    <TouchableOpacity onPress={() => removeRow(setMaterials, i)} style={styles.deleteBtn}><Text style={{ color: colors.danger }}>✕</Text></TouchableOpacity>
+                  <View key={i} style={{ marginBottom: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: i < materials.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                    {/* Item Name & Delete */}
+                    <View style={styles.lineRow}>
+                      <TextInput 
+                        style={[styles.lineInput, { flex: 1, minWidth: 0 }]} 
+                        placeholder="Material / Item name" 
+                        placeholderTextColor={colors.textSecondary} 
+                        value={m.item_name || ''} 
+                        onChangeText={v => updateRow(setMaterials, i, 'item_name', v)} 
+                      />
+                      <TouchableOpacity onPress={() => removeRow(setMaterials, i)} style={styles.deleteBtn}>
+                        <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Quantity, Price per Unit ($), and Line Total */}
+                    <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Quantity</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="Qty" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={m.quantity || ''} 
+                          onChangeText={v => updateRow(setMaterials, i, 'quantity', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                      <View style={{ flex: 1.5, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Price per Unit ($)</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="0.00" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={m.unit_cost || ''} 
+                          onChangeText={v => updateRow(setMaterials, i, 'unit_cost', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                      <View style={{ flex: 1.2, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Total ($)</Text>
+                        <TextInput 
+                          style={[styles.lineInput, { backgroundColor: '#F3F4F6', color: colors.textSecondary }]} 
+                          value={((parseFloat(m.quantity) || 0) * (parseFloat(m.unit_cost) || 0)).toFixed(2)} 
+                          editable={false} 
+                        />
+                      </View>
+                    </View>
                   </View>
                 ))}
                 <View style={styles.totalRow}><Text style={{ color: colors.textSecondary }}>Materials Total</Text><Text style={styles.totalValue}>{fmt(materialsTotal)}</Text></View>
@@ -463,13 +506,56 @@ export default function NewQuoteScreen({ navigation, route }) {
 
             {activeTab === 'equipment' && (
               <>
-                <SectionHeader title="Equipment" action="+ Add" onAction={() => addRow(setEquipment)} />
+                <SectionHeader title="Equipment" action="+ Add" onAction={() => addRow(setEquipment, { item_name: '', duration_days: '', daily_rate: '' })} />
                 {equipment.map((e, i) => (
-                  <View key={i} style={styles.lineRow}>
-                    <TextInput style={[styles.lineInput, { flex: 2 }]} placeholder="Item" placeholderTextColor={colors.textSecondary} value={e.item_name} onChangeText={v => updateRow(setEquipment, i, 'item_name', v)} />
-                    <TextInput style={[styles.lineInput, { flex: 0.8 }]} placeholder="Days" placeholderTextColor={colors.textSecondary} value={e.duration_days} onChangeText={v => updateRow(setEquipment, i, 'duration_days', v)} keyboardType="decimal-pad" />
-                    <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="$/day" placeholderTextColor={colors.textSecondary} value={e.daily_rate} onChangeText={v => updateRow(setEquipment, i, 'daily_rate', v)} keyboardType="decimal-pad" />
-                    <TouchableOpacity onPress={() => removeRow(setEquipment, i)} style={styles.deleteBtn}><Text style={{ color: colors.danger }}>✕</Text></TouchableOpacity>
+                  <View key={i} style={{ marginBottom: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: i < equipment.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                    {/* Item Name & Delete */}
+                    <View style={styles.lineRow}>
+                      <TextInput 
+                        style={[styles.lineInput, { flex: 1, minWidth: 0 }]} 
+                        placeholder="Equipment item" 
+                        placeholderTextColor={colors.textSecondary} 
+                        value={e.item_name || ''} 
+                        onChangeText={v => updateRow(setEquipment, i, 'item_name', v)} 
+                      />
+                      <TouchableOpacity onPress={() => removeRow(setEquipment, i)} style={styles.deleteBtn}>
+                        <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Days, Daily Rate ($), and Line Total */}
+                    <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Days</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="Days" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={e.duration_days || ''} 
+                          onChangeText={v => updateRow(setEquipment, i, 'duration_days', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                      <View style={{ flex: 1.5, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Daily Rate ($)</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="0.00" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={e.daily_rate || ''} 
+                          onChangeText={v => updateRow(setEquipment, i, 'daily_rate', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                      <View style={{ flex: 1.2, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Total ($)</Text>
+                        <TextInput 
+                          style={[styles.lineInput, { backgroundColor: '#F3F4F6', color: colors.textSecondary }]} 
+                          value={((parseFloat(e.duration_days) || 0) * (parseFloat(e.daily_rate) || 0)).toFixed(2)} 
+                          editable={false} 
+                        />
+                      </View>
+                    </View>
                   </View>
                 ))}
                 <View style={styles.totalRow}><Text style={{ color: colors.textSecondary }}>Equipment Total</Text><Text style={styles.totalValue}>{fmt(equipmentTotal)}</Text></View>
@@ -478,12 +564,34 @@ export default function NewQuoteScreen({ navigation, route }) {
 
             {activeTab === 'sundry' && (
               <>
-                <SectionHeader title="Sundry Items" action="+ Add" onAction={() => addRow(setSundry)} />
+                <SectionHeader title="Sundry Items" action="+ Add" onAction={() => addRow(setSundry, { description: '', flat_amount: '' })} />
                 {sundry.map((s, i) => (
-                  <View key={i} style={styles.lineRow}>
-                    <TextInput style={[styles.lineInput, { flex: 2 }]} placeholder="Description" placeholderTextColor={colors.textSecondary} value={s.description} onChangeText={v => updateRow(setSundry, i, 'description', v)} />
-                    <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="Amount" placeholderTextColor={colors.textSecondary} value={s.flat_amount} onChangeText={v => updateRow(setSundry, i, 'flat_amount', v)} keyboardType="decimal-pad" />
-                    <TouchableOpacity onPress={() => removeRow(setSundry, i)} style={styles.deleteBtn}><Text style={{ color: colors.danger }}>✕</Text></TouchableOpacity>
+                  <View key={i} style={{ marginBottom: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: i < sundry.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                    <View style={styles.lineRow}>
+                      <TextInput 
+                        style={[styles.lineInput, { flex: 1, minWidth: 0 }]} 
+                        placeholder="Description" 
+                        placeholderTextColor={colors.textSecondary} 
+                        value={s.description || ''} 
+                        onChangeText={v => updateRow(setSundry, i, 'description', v)} 
+                      />
+                      <TouchableOpacity onPress={() => removeRow(setSundry, i)} style={styles.deleteBtn}>
+                        <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Amount ($)</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="0.00" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={s.flat_amount || ''} 
+                          onChangeText={v => updateRow(setSundry, i, 'flat_amount', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                    </View>
                   </View>
                 ))}
                 <View style={styles.totalRow}><Text style={{ color: colors.textSecondary }}>Sundry Total</Text><Text style={styles.totalValue}>{fmt(sundryTotal)}</Text></View>
@@ -492,12 +600,34 @@ export default function NewQuoteScreen({ navigation, route }) {
 
             {activeTab === 'higher' && (
               <>
-                <SectionHeader title="Higher Costs (Permits, Fees)" action="+ Add" onAction={() => addRow(setHigherCosts)} />
+                <SectionHeader title="Higher Costs (Permits, Fees)" action="+ Add" onAction={() => addRow(setHigherCosts, { description: '', amount: '' })} />
                 {higherCosts.map((h, i) => (
-                  <View key={i} style={styles.lineRow}>
-                    <TextInput style={[styles.lineInput, { flex: 2 }]} placeholder="e.g. Permit fee" placeholderTextColor={colors.textSecondary} value={h.description} onChangeText={v => updateRow(setHigherCosts, i, 'description', v)} />
-                    <TextInput style={[styles.lineInput, { flex: 1 }]} placeholder="Amount" placeholderTextColor={colors.textSecondary} value={h.amount} onChangeText={v => updateRow(setHigherCosts, i, 'amount', v)} keyboardType="decimal-pad" />
-                    <TouchableOpacity onPress={() => removeRow(setHigherCosts, i)} style={styles.deleteBtn}><Text style={{ color: colors.danger }}>✕</Text></TouchableOpacity>
+                  <View key={i} style={{ marginBottom: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: i < higherCosts.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                    <View style={styles.lineRow}>
+                      <TextInput 
+                        style={[styles.lineInput, { flex: 1, minWidth: 0 }]} 
+                        placeholder="e.g. Permit fee" 
+                        placeholderTextColor={colors.textSecondary} 
+                        value={h.description || ''} 
+                        onChangeText={v => updateRow(setHigherCosts, i, 'description', v)} 
+                      />
+                      <TouchableOpacity onPress={() => removeRow(setHigherCosts, i)} style={styles.deleteBtn}>
+                        <Text style={{ color: colors.danger, fontSize: 16 }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.lineRow, { marginTop: spacing.xs }]}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary, marginBottom: 2 }}>Amount ($)</Text>
+                        <TextInput 
+                          style={styles.lineInput} 
+                          placeholder="0.00" 
+                          placeholderTextColor={colors.textSecondary} 
+                          value={h.amount || ''} 
+                          onChangeText={v => updateRow(setHigherCosts, i, 'amount', v)} 
+                          keyboardType="decimal-pad" 
+                        />
+                      </View>
+                    </View>
                   </View>
                 ))}
                 <View style={styles.totalRow}><Text style={{ color: colors.textSecondary }}>Higher Costs Total</Text><Text style={styles.totalValue}>{fmt(higherTotal)}</Text></View>
@@ -575,7 +705,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   tabTextActive: { color: colors.primary },
   lineRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs, alignItems: 'center' },
-  lineInput: { borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 8, fontSize: 14, color: colors.text, backgroundColor: colors.surface },
+  lineInput: { borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 8, fontSize: 14, color: colors.text, backgroundColor: colors.surface, minWidth: 0 },
   deleteBtn: { padding: spacing.xs },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: spacing.sm, marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   totalValue: { fontWeight: '700', color: colors.primary },
