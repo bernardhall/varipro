@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -200,6 +200,16 @@ export default function QuotePreviewScreen({ route, navigation }) {
   };
 
   const handlePrint = async () => {
+    if (Platform.OS === 'web') {
+      const iframe = document.getElementById('quote-preview-iframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        return;
+      }
+      window.print();
+      return;
+    }
     try {
       await Print.printAsync({
         html: htmlContent,
@@ -218,8 +228,22 @@ export default function QuotePreviewScreen({ route, navigation }) {
         console.warn('Could not update status to sent:', statusErr);
       }
 
-      const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
       const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
+      const intendedRecipient = clientData?.email || quote.client_email || '';
+
+      if (Platform.OS === 'web') {
+        const subject = encodeURIComponent(`Quote: ${quote.job_name}`);
+        const body = encodeURIComponent(
+          `Hi ${quote.client_name || 'there'},\n\n` +
+          `Please review the quote for ${quote.job_name}.\n\n` +
+          `You can review and approve it online here:\n${portalLink}\n\n` +
+          `Thanks,\n${user?.first_name || 'Your Provider'}`
+        );
+        window.open(`mailto:${intendedRecipient}?subject=${subject}&body=${body}`, '_blank');
+        return;
+      }
+
+      const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
 
       const emailHtml = `
         <div style="font-family: sans-serif; font-size: 15px; color: #333; line-height: 1.6;">
@@ -232,8 +256,6 @@ export default function QuotePreviewScreen({ route, navigation }) {
           <p>Thanks,<br/>${user?.first_name || 'Your Provider'}</p>
         </div>
       `;
-
-      const intendedRecipient = clientData?.email || quote.client_email || '';
 
       const composeResult = await MailComposer.composeAsync({
         recipients: intendedRecipient ? [intendedRecipient] : [],
@@ -269,14 +291,19 @@ export default function QuotePreviewScreen({ route, navigation }) {
         console.warn('Could not update status to sent:', statusErr);
       }
 
+      const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
+      const intendedPhone = clientData?.phone || quote.client_phone || '';
+      const smsMessage = `Hi ${quote.client_name || ''}, here is the quote for ${quote.job_name}. Review it online here: ${portalLink}`;
+
+      if (Platform.OS === 'web') {
+        window.open(`sms:${intendedPhone}?&body=${encodeURIComponent(smsMessage)}`, '_blank');
+        return;
+      }
+
       const { uri, base64 } = await Print.printToFileAsync({ html: htmlContent, base64: true });
       const isAvailable = await SMS.isAvailableAsync();
-      const portalLink = `https://myvaripro.com/quote.html?id=${quote.id}`;
       
       if (isAvailable) {
-        const intendedPhone = clientData?.phone || quote.client_phone || '';
-        const smsMessage = `Hi ${quote.client_name || ''}, here is the quote for ${quote.job_name}. Review the attached PDF or view online here: ${portalLink}`;
-        
         const { result } = await SMS.sendSMSAsync(
           intendedPhone ? [intendedPhone] : [],
           smsMessage,
@@ -334,20 +361,29 @@ export default function QuotePreviewScreen({ route, navigation }) {
         </View>
       </View>
       <View style={styles.webviewContainer}>
-        <WebView 
-          source={{ html: htmlContent }} 
-          style={{ flex: 1 }}
-          originWhitelist={['*']}
-          scalesPageToFit={true}
-          showsVerticalScrollIndicator={false}
-          onShouldStartLoadWithRequest={(request) => {
-            if (request.url.startsWith('mailto:')) {
-              Linking.openURL(request.url);
-              return false;
-            }
-            return true;
-          }}
-        />
+        {Platform.OS === 'web' ? (
+          <iframe 
+            id="quote-preview-iframe"
+            srcDoc={htmlContent} 
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Quote Preview"
+          />
+        ) : (
+          <WebView 
+            source={{ html: htmlContent }} 
+            style={{ flex: 1 }}
+            originWhitelist={['*']}
+            scalesPageToFit={true}
+            showsVerticalScrollIndicator={false}
+            onShouldStartLoadWithRequest={(request) => {
+              if (request.url.startsWith('mailto:')) {
+                Linking.openURL(request.url);
+                return false;
+              }
+              return true;
+            }}
+          />
+        )}
       </View>
     </View>
   );
