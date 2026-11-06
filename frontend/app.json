@@ -46,7 +46,9 @@
         }
       ],
       "expo-local-authentication",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "expo-sharing",
+      "expo-status-bar"
     ]
   }
 }

@@ -99,20 +99,25 @@ router.post('/users', adminMiddleware, async (req, res) => {
     if (!first_name || !last_name || !login_name || !email || !password) {
       return res.status(400).json({ error: 'All fields required' });
     }
+    const cleanFirstName = first_name.trim();
+    const cleanLastName = last_name.trim();
+    const cleanLoginName = login_name.trim();
+    const cleanEmail = email.trim();
+
     if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
       return res.status(400).json({ error: 'Password must be 8+ chars with at least 1 letter and 1 number' });
     }
-    const existing = await query('SELECT 1 FROM users WHERE login_name = $1', [login_name]);
+    const existing = await query('SELECT 1 FROM users WHERE LOWER(login_name) = LOWER($1)', [cleanLoginName]);
     if (existing.rowCount > 0) return res.status(409).json({ error: 'Login name already taken' });
 
     const user_id = uuidv4();
     const password_hash = await bcrypt.hash(password, 10);
     const pin_hash = pin ? await bcrypt.hash(pin, 10) : null;
 
-    await query('INSERT INTO users (user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, is_admin) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-      [user_id, req.user.account_id, first_name, last_name, login_name, email, password_hash, pin_hash, is_admin ? 1 : 0]);
+    await query('INSERT INTO users (user_id, account_id, first_name, last_name, login_name, email, password_hash, pin_hash, is_admin, is_confirmed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)',
+      [user_id, req.user.account_id, cleanFirstName, cleanLastName, cleanLoginName, cleanEmail, password_hash, pin_hash, is_admin ? 1 : 0]);
 
-    res.status(201).json({ user_id, login_name, first_name, last_name });
+    res.status(201).json({ user_id, login_name: cleanLoginName, first_name: cleanFirstName, last_name: cleanLastName });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -132,9 +137,8 @@ router.put('/users/:id', adminMiddleware, async (req, res) => {
 
     const currentUser = userCheck.rows[0];
 
-    // If changing login name, check uniqueness
-    if (login_name && login_name !== currentUser.login_name) {
-      const existing = await query('SELECT 1 FROM users WHERE login_name = $1', [login_name]);
+    if (login_name && login_name.trim().toLowerCase() !== currentUser.login_name.toLowerCase()) {
+      const existing = await query('SELECT 1 FROM users WHERE LOWER(login_name) = LOWER($1) AND user_id != $2', [login_name.trim(), userId]);
       if (existing.rowCount > 0) return res.status(409).json({ error: 'Login name already taken' });
     }
 
