@@ -60,11 +60,17 @@ export default function QuoteDetailScreen({ route, navigation }) {
           <View style={{ flex: 1 }}>
             <Text style={typography.h2}>{quote.job_name}</Text>
             {quote.client_name && <Text style={{ color: colors.textSecondary }}>👤 {quote.client_name}</Text>}
+            {quote.site_address && <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>📍 {quote.site_address}</Text>}
             <Text style={{ color: colors.secondary, fontSize: 12, fontWeight: '600', marginTop: 2 }}>✍️ Created by: {quote.creator_name || 'System / Existing'}</Text>
           </View>
-          <TouchableOpacity onPress={handleStatusChange}>
-            <Badge status={quote.status} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            {quote.is_direct_job ? (
+              <Badge label="DIRECT JOB" bg="#E0F2FE" text="#0369A1" icon="🛠️" />
+            ) : null}
+            <TouchableOpacity onPress={handleStatusChange}>
+              <Badge status={quote.status} />
+            </TouchableOpacity>
+          </View>
         </View>
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: spacing.sm }}>
           Created {new Date(quote.created_at).toLocaleDateString('en-AU')} · Updated {new Date(quote.updated_at).toLocaleDateString('en-AU')}
@@ -76,46 +82,61 @@ export default function QuoteDetailScreen({ route, navigation }) {
         )}
       </Card>
 
-      {/* Grand Total */}
-      <Card style={{ backgroundColor: colors.primary }}>
-        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' }}>GRAND TOTAL</Text>
-        <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800' }}>{fmt(quote.grand_total)}</Text>
-      </Card>
+      {/* Direct Job Timesheet CTA */}
+      {quote.is_direct_job ? (
+        <TouchableOpacity
+          style={styles.timeBtn}
+          onPress={() => navigation.navigate('Timesheet', { preselectedJobId: quote.id })}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.timeBtnText}>⏱️  Start Work / Log Timesheet</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Grand Total (Quotes Only) */}
+      {!quote.is_direct_job && (
+        <Card style={{ backgroundColor: colors.primary }}>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' }}>GRAND TOTAL</Text>
+          <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800' }}>{fmt(quote.grand_total)}</Text>
+        </Card>
+      )}
 
       {/* Summary */}
       {quote.summary_explanation && (
         <Card>
-          <SectionHeader title="Work Summary" />
+          <SectionHeader title={quote.is_direct_job ? "Job Notes & Scope" : "Work Summary"} />
           <Text style={{ color: colors.text, lineHeight: 22 }}>{quote.summary_explanation}</Text>
         </Card>
       )}
 
-      {/* Cost Breakdown */}
-      <Card>
-        <SectionHeader title="Cost Breakdown" />
-        {(() => {
-          const laborCost = quote.tasks?.reduce((s, t) => {
-            if (t.task_type === 'set') return s + (t.price || 0);
-            if (t.task_type === 'charge') return s;
-            return s + (t.estimated_hours || 0) * (t.hourly_rate || 75);
-          }, 0) || 0;
-          const subtotal = laborCost + (quote.total_material_cost || 0) + (quote.total_equipment_cost || 0) + (quote.total_sundry_cost || 0) + (quote.total_higher_cost || 0);
-          
-          return (
-            <>
-              <LineItemRow label="Labour" value={fmt(laborCost)} />
-              <LineItemRow label="Materials" value={fmt(quote.total_material_cost)} />
-              <LineItemRow label="Equipment" value={fmt(quote.total_equipment_cost)} />
-              <LineItemRow label="Sundry" value={fmt(quote.total_sundry_cost)} />
-              <LineItemRow label="Other Costs" value={fmt(quote.total_higher_cost)} />
-              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xs, paddingTop: spacing.xs }}>
-                <LineItemRow label="Subtotal" value={fmt(subtotal)} />
-                <LineItemRow label="Tax" value={fmt(quote.tax_amount)} />
-              </View>
-            </>
-          );
-        })()}
-      </Card>
+      {/* Cost Breakdown (Quotes Only) */}
+      {!quote.is_direct_job && (
+        <Card>
+          <SectionHeader title="Cost Breakdown" />
+          {(() => {
+            const laborCost = quote.tasks?.reduce((s, t) => {
+              if (t.task_type === 'set') return s + (t.price || 0);
+              if (t.task_type === 'charge') return s;
+              return s + (t.estimated_hours || 0) * (t.hourly_rate || 75);
+            }, 0) || 0;
+            const subtotal = laborCost + (quote.total_material_cost || 0) + (quote.total_equipment_cost || 0) + (quote.total_sundry_cost || 0) + (quote.total_higher_cost || 0);
+            
+            return (
+              <>
+                <LineItemRow label="Labour" value={fmt(laborCost)} />
+                <LineItemRow label="Materials" value={fmt(quote.total_material_cost)} />
+                <LineItemRow label="Equipment" value={fmt(quote.total_equipment_cost)} />
+                <LineItemRow label="Sundry" value={fmt(quote.total_sundry_cost)} />
+                <LineItemRow label="Other Costs" value={fmt(quote.total_higher_cost)} />
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xs, paddingTop: spacing.xs }}>
+                  <LineItemRow label="Subtotal" value={fmt(subtotal)} />
+                  <LineItemRow label="Tax" value={fmt(quote.tax_amount)} />
+                </View>
+              </>
+            );
+          })()}
+        </Card>
+      )}
 
       {/* Tasks */}
       {quote.tasks?.length > 0 && (
@@ -198,14 +219,16 @@ export default function QuoteDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity
-        style={{ ...styles.editBtn, borderColor: colors.secondary, marginTop: spacing.sm }}
-        onPress={() => navigation.navigate('QuotePreview', { quote })}
-      >
-        <Text style={{ color: colors.secondary, fontWeight: '700', fontSize: 16 }}>📄 Preview & Generate PDF</Text>
-      </TouchableOpacity>
+      {!quote.is_direct_job && (
+        <TouchableOpacity
+          style={{ ...styles.editBtn, borderColor: colors.secondary, marginTop: spacing.sm }}
+          onPress={() => navigation.navigate('QuotePreview', { quote })}
+        >
+          <Text style={{ color: colors.secondary, fontWeight: '700', fontSize: 16 }}>📄 Preview & Generate PDF</Text>
+        </TouchableOpacity>
+      )}
 
-      {user?.is_admin && quote.status === 'draft' && !quote.verified_by && (
+      {!quote.is_direct_job && user?.is_admin && quote.status === 'draft' && !quote.verified_by && (
         <TouchableOpacity
           style={{ ...styles.editBtn, borderColor: colors.success, backgroundColor: colors.success, marginTop: spacing.md }}
           onPress={() => changeStatus('verified')}
@@ -223,5 +246,18 @@ const styles = StyleSheet.create({
   editBtn: {
     alignItems: 'center', paddingVertical: spacing.md, borderRadius: radius.md,
     borderWidth: 1.5, borderColor: colors.primary, marginTop: spacing.sm,
+  },
+  timeBtn: {
+    backgroundColor: '#0284C7',
+    paddingVertical: 14,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    ...shadow.sm,
+  },
+  timeBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

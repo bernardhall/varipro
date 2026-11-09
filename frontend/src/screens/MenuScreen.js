@@ -1,13 +1,23 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
+import CreateJobModal from '../components/CreateJobModal';
 import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
 export default function MenuScreen({ navigation }) {
   const { user } = useAuth();
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
 
   const menuItems = [
+    {
+      id: 'direct_job',
+      title: 'Create Direct Job',
+      emoji: '⚡',
+      description: 'Quick job for timesheeting without a quote',
+      action: 'direct_job',
+      adminOnly: false,
+    },
     {
       id: 'clients',
       title: 'Clients',
@@ -36,12 +46,31 @@ export default function MenuScreen({ navigation }) {
 
   const filteredItems = menuItems.filter(item => !item.adminOnly || user?.is_admin);
 
+  const handlePress = (item) => {
+    if (item.action === 'direct_job') {
+      setShowCreateJobModal(true);
+    } else if (item.screen) {
+      navigation.navigate(item.screen);
+    }
+  };
+
+  const handleJobCreated = (newJob) => {
+    Alert.alert(
+      'Job Created',
+      `Job "${newJob.job_name}" created and ready for timesheets!`,
+      [
+        { text: 'Go to Timesheets', onPress: () => navigation.navigate('Timesheet', { preselectedJobId: newJob.id }) },
+        { text: 'OK', style: 'cancel' },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>More Options</Text>
-          <Text style={styles.subtitle}>Manage clients, settings, and team</Text>
+          <Text style={styles.subtitle}>Manage jobs, clients, settings, and team</Text>
         </View>
 
         <View style={styles.grid}>
@@ -49,7 +78,7 @@ export default function MenuScreen({ navigation }) {
             <TouchableOpacity
               key={item.id}
               style={styles.card}
-              onPress={() => navigation.navigate(item.screen)}
+              onPress={() => handlePress(item)}
             >
               <Text style={styles.cardEmoji}>{item.emoji}</Text>
               <View style={styles.cardBody}>
@@ -60,6 +89,12 @@ export default function MenuScreen({ navigation }) {
           ))}
         </View>
       </ScrollView>
+
+      <CreateJobModal
+        visible={showCreateJobModal}
+        onClose={() => setShowCreateJobModal(false)}
+        onJobCreated={handleJobCreated}
+      />
     </SafeAreaView>
   );
 }

@@ -53,6 +53,7 @@ export const requestPasswordReset = (email) => api.post('/auth/password-reset', 
 export const getQuotes = (params) => api.get('/quotes', { params }).then(r => r.data);
 export const getQuote = (id) => api.get(`/quotes/${id}`).then(r => r.data);
 export const createQuote = (payload) => api.post('/quotes', payload).then(r => r.data);
+export const createDirectJob = (payload) => api.post('/quotes/direct-job', payload).then(r => r.data);
 export const updateQuote = (id, payload) => api.put(`/quotes/${id}`, payload).then(r => r.data);
 export const deleteQuote = (id) => api.delete(`/quotes/${id}`).then(r => r.data);
 export const recordQuoteSend = (id, payload) => api.post(`/quotes/${id}/record-send`, payload).then(r => r.data);

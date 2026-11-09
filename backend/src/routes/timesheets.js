@@ -10,7 +10,7 @@ router.use(authMiddleware);
 router.get('/accepted-quotes', async (req, res) => {
   try {
     const sql = `
-      SELECT q.id, q.job_name, c.full_name as client_name 
+      SELECT q.id, q.job_name, q.is_direct_job, q.summary_explanation, c.full_name as client_name, c.site_address 
       FROM quotes q
       LEFT JOIN clients c ON q.client_id = c.id
       WHERE q.account_id = $1 AND q.status = 'accepted'

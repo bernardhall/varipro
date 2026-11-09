@@ -131,7 +131,11 @@ router.get('/', async (req, res) => {
       params.push(req.user.user_id);
     }
     
-    if (status && status !== 'all') { 
+    if (status === 'direct') {
+      sql += ' AND q.is_direct_job = 1';
+    } else if (status === 'jobs') {
+      sql += " AND (q.is_direct_job = 1 OR q.status = 'accepted')";
+    } else if (status && status !== 'all') { 
       sql += ` AND q.status = $${pIdx++}`; 
       params.push(status); 
     }
@@ -180,6 +184,79 @@ router.get('/:id', async (req, res) => {
     res.json(quote);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /quotes/direct-job - Create an active job directly without going through the quote process
+router.post('/direct-job', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { job_name, client_id, new_client, summary_explanation, site_address, task_name } = req.body;
+    if (!job_name || !job_name.trim()) {
+      return res.status(400).json({ error: 'Job name is required' });
+    }
+
+    await client.query('BEGIN');
+
+    let resolvedClientId = client_id || null;
+
+    // Create client on the fly if requested
+    if (!resolvedClientId && new_client && new_client.full_name && new_client.full_name.trim()) {
+      const newClientId = uuidv4();
+      await client.query(
+        `INSERT INTO clients (id, account_id, full_name, email, phone, site_address)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          newClientId,
+          req.user.account_id,
+          new_client.full_name.trim(),
+          new_client.email ? new_client.email.trim() : null,
+          new_client.phone ? new_client.phone.trim() : null,
+          new_client.site_address ? new_client.site_address.trim() : (site_address ? site_address.trim() : 'N/A')
+        ]
+      );
+      resolvedClientId = newClientId;
+    }
+
+    const id = uuidv4();
+    const cleanJobName = job_name.trim();
+
+    // Direct jobs are marked 'accepted' immediately for timesheet availability
+    await client.query(`
+      INSERT INTO quotes (
+        id, account_id, client_id, job_name, status, summary_explanation,
+        total_labor_hours, total_material_cost, total_equipment_cost, total_sundry_cost, total_higher_cost, tax_amount, grand_total,
+        created_by, verified_by, is_direct_job
+      ) VALUES ($1, $2, $3, $4, 'accepted', $5, 0, 0, 0, 0, 0, 0, 0, $6, $6, 1)
+    `, [id, req.user.account_id, resolvedClientId, cleanJobName, summary_explanation ? summary_explanation.trim() : null, req.user.user_id]);
+
+    // If an initial task is provided, insert it
+    if (task_name && task_name.trim()) {
+      const taskId = uuidv4();
+      await client.query(
+        `INSERT INTO quote_tasks (id, quote_id, task_name, task_type, estimated_hours, hourly_rate, price)
+         VALUES ($1, $2, $3, 'hourly', 0, 75, 0)`,
+        [taskId, id, task_name.trim()]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const createdRes = await query(`
+      SELECT q.*, c.full_name as client_name, c.site_address,
+             u.first_name || ' ' || u.last_name as creator_name
+      FROM quotes q
+      LEFT JOIN clients c ON q.client_id = c.id
+      LEFT JOIN users u ON q.created_by = u.user_id
+      WHERE q.id = $1
+    `, [id]);
+
+    res.status(201).json(createdRes.rows[0]);
+  } catch (err) {
+    if (client) await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (client) client.release();
   }
 });
 

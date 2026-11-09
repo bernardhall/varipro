@@ -78,17 +78,20 @@ const cardStyles = StyleSheet.create({
 });
 
 // ── Badge ─────────────────────────────────────────────────────────────────
-export function Badge({ status }) {
+export function Badge({ status, label, bg, text, icon }) {
   const colorMap = {
     draft: { bg: '#EDF2F7', text: colors.textSecondary },
+    verified: { bg: '#EBF8FF', text: '#2B6CB0' },
     sent: { bg: '#EBF8FF', text: colors.info },
     accepted: { bg: '#F0FFF4', text: colors.success },
     declined: { bg: '#FFF5F5', text: colors.danger },
   };
-  const c = colorMap[status] || colorMap.draft;
+  const c = (bg && text) ? { bg, text } : (colorMap[status] || colorMap.draft);
+  const displayText = label || status;
   return (
-    <View style={{ backgroundColor: c.bg, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3 }}>
-      <Text style={{ color: c.text, fontSize: 12, fontWeight: '600', textTransform: 'capitalize' }}>{status}</Text>
+    <View style={{ backgroundColor: c.bg, borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 3, flexDirection: 'row', alignItems: 'center' }}>
+      {icon ? <Text style={{ fontSize: 11, marginRight: 4 }}>{icon}</Text> : null}
+      <Text style={{ color: c.text, fontSize: 12, fontWeight: '700', textTransform: label ? 'none' : 'capitalize' }}>{displayText}</Text>
     </View>
   );
 }

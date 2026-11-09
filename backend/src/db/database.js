@@ -149,6 +149,9 @@ async function initSchema() {
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='quotes' AND column_name='verified_by') THEN
         ALTER TABLE quotes ADD COLUMN verified_by TEXT REFERENCES users(user_id);
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='quotes' AND column_name='is_direct_job') THEN
+        ALTER TABLE quotes ADD COLUMN is_direct_job INTEGER DEFAULT 0;
+      END IF;
     END $$;
 
     -- Migration: Update status CHECK constraint to allow 'verified'

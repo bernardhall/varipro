@@ -8,9 +8,10 @@ import {
   getAcceptedQuotes, getTimesheets, startTimesheet, logTimesheetEvent 
 } from '../services/api';
 import { Card, Button, Input } from '../components/UI';
+import CreateJobModal from '../components/CreateJobModal';
 import { colors, spacing, radius, shadow } from '../utils/theme';
 
-export default function TimesheetScreen({ navigation }) {
+export default function TimesheetScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
@@ -24,6 +25,7 @@ export default function TimesheetScreen({ navigation }) {
   
   // Custom Dropdown modal state
   const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -52,7 +54,12 @@ export default function TimesheetScreen({ navigation }) {
         setNotes(active.notes || '');
       } else {
         setActiveSession(null);
-        setSelectedJob(null);
+        if (route?.params?.preselectedJobId) {
+          const pre = acceptedQuotes.find(j => j.id === route.params.preselectedJobId);
+          if (pre) setSelectedJob(pre);
+        } else {
+          setSelectedJob(null);
+        }
         setTaskName('');
         setNotes('');
       }
@@ -61,6 +68,12 @@ export default function TimesheetScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleJobCreated = (newJob) => {
+    setJobs(prev => [newJob, ...prev.filter(j => j.id !== newJob.id)]);
+    setSelectedJob(newJob);
+    fetchInitialData();
   };
 
   const getGPSLocation = async () => {
@@ -207,14 +220,23 @@ export default function TimesheetScreen({ navigation }) {
               <Text style={styles.sectionTitle}>Timesheet Entry</Text>
               
               {/* Job Dropdown selector */}
-              <Text style={styles.label}>Job Name *</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Job Name *</Text>
+                {!activeSession && (
+                  <TouchableOpacity onPress={() => setShowCreateJobModal(true)}>
+                    <Text style={styles.newJobLink}>＋ New Job</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity 
                 style={[styles.dropdownTrigger, activeSession && styles.disabledInput]} 
                 onPress={() => !activeSession && setDropdownVisible(true)}
                 disabled={!!activeSession}
               >
                 <Text style={[styles.dropdownTriggerText, !selectedJob && { color: colors.textSecondary }]}>
-                  {selectedJob ? selectedJob.job_name : 'Select Accepted Job...'}
+                  {selectedJob 
+                    ? `${selectedJob.is_direct_job ? '🛠️ ' : '📋 '}${selectedJob.job_name}` 
+                    : 'Select Job for Timesheet...'}
                 </Text>
                 {!activeSession && <Text style={styles.dropdownArrow}>▼</Text>}
               </TouchableOpacity>
@@ -326,7 +348,18 @@ export default function TimesheetScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Accepted Job</Text>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Select Job</Text>
+              <TouchableOpacity 
+                style={styles.modalNewJobBtn}
+                onPress={() => {
+                  setDropdownVisible(false);
+                  setShowCreateJobModal(true);
+                }}
+              >
+                <Text style={styles.modalNewJobBtnText}>＋ New Job</Text>
+              </TouchableOpacity>
+            </View>
             <FlatList
               data={jobs}
               keyExtractor={item => item.id}
@@ -338,12 +371,31 @@ export default function TimesheetScreen({ navigation }) {
                     setDropdownVisible(false);
                   }}
                 >
-                  <Text style={styles.modalItemName}>{item.job_name}</Text>
-                  <Text style={styles.modalItemClient}>{item.client_name || 'N/A'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ marginRight: 6, fontSize: 16 }}>{item.is_direct_job ? '🛠️' : '📋'}</Text>
+                    <Text style={styles.modalItemName}>{item.job_name}</Text>
+                    <View style={[styles.jobTypeTag, item.is_direct_job ? styles.directTag : styles.quoteTag]}>
+                      <Text style={[styles.jobTypeTagText, item.is_direct_job ? styles.directTagText : styles.quoteTagText]}>
+                        {item.is_direct_job ? 'Direct Job' : 'Quote'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.modalItemClient}>{item.client_name ? `Client: ${item.client_name}` : 'No Client'}</Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
-                <Text style={styles.emptyModalText}>No accepted jobs available</Text>
+                <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
+                  <Text style={styles.emptyModalText}>No active jobs available</Text>
+                  <TouchableOpacity 
+                    style={[styles.modalNewJobBtn, { marginTop: spacing.sm }]}
+                    onPress={() => {
+                      setDropdownVisible(false);
+                      setShowCreateJobModal(true);
+                    }}
+                  >
+                    <Text style={styles.modalNewJobBtnText}>＋ Create Your First Job</Text>
+                  </TouchableOpacity>
+                </View>
               }
             />
             <Button 
@@ -355,6 +407,13 @@ export default function TimesheetScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Direct Job Creation Modal */}
+      <CreateJobModal
+        visible={showCreateJobModal}
+        onClose={() => setShowCreateJobModal(false)}
+        onJobCreated={handleJobCreated}
+      />
     </View>
   );
 }
@@ -571,5 +630,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textSecondary,
     paddingVertical: spacing.lg,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  newJobLink: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  modalNewJobBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  modalNewJobBtnText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  jobTypeTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  directTag: {
+    backgroundColor: '#E0F2FE',
+  },
+  quoteTag: {
+    backgroundColor: '#F3F4F6',
+  },
+  jobTypeTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  directTagText: {
+    color: '#0369A1',
+  },
+  quoteTagText: {
+    color: '#4B5563',
   },
 });
