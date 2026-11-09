@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Image } fr
 import { useAuth } from '../hooks/useAuth';
 import { getQuote, updateQuote, BASE_URL } from '../services/api';
 import { Badge, Card, LoadingScreen, SectionHeader, LineItemRow } from '../components/UI';
-import { colors, spacing, typography, radius } from '../utils/theme';
+import { colors, spacing, typography, radius, shadow } from '../utils/theme';
 
 export default function QuoteDetailScreen({ route, navigation }) {
   const { user } = useAuth();
