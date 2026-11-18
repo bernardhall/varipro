@@ -234,8 +234,8 @@ async function initSchema() {
       task_name    TEXT,
       notes        TEXT,
       status       TEXT DEFAULT 'working' CHECK(status IN ('working', 'paused', 'stopped')),
-      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS timesheet_events (
@@ -244,7 +244,7 @@ async function initSchema() {
       event_type   TEXT NOT NULL CHECK(event_type IN ('start', 'pause', 'resume', 'stop')),
       latitude     DOUBLE PRECISION,
       longitude    DOUBLE PRECISION,
-      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE INDEX IF NOT EXISTS idx_quotes_account_status ON quotes(account_id, status);
@@ -254,6 +254,16 @@ async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_timesheets_user ON timesheet_entries(user_id);
     CREATE INDEX IF NOT EXISTS idx_timesheet_events ON timesheet_events(timesheet_id);
   `);
+
+  try {
+    await query(`
+      ALTER TABLE timesheet_entries ALTER COLUMN created_at TYPE TIMESTAMPTZ;
+      ALTER TABLE timesheet_entries ALTER COLUMN updated_at TYPE TIMESTAMPTZ;
+      ALTER TABLE timesheet_events ALTER COLUMN created_at TYPE TIMESTAMPTZ;
+    `);
+  } catch (e) {
+    // Column already TIMESTAMPTZ or harmless
+  }
 }
 
 module.exports = { query, initSchema, pool };

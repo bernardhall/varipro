@@ -96,83 +96,164 @@ export default function TimesheetScreen({ route, navigation }) {
     fetchInitialData(newJob.id, true);
   };
 
-  const handleSelectJobFromLog = (item) => {
+  const parseServerDate = (dateVal) => {
+    if (!dateVal) return null;
+    if (dateVal instanceof Date) return dateVal;
+    let str = String(dateVal).trim();
+    // If string is in format "YYYY-MM-DD HH:MM:SS" without Z or timezone offset, append Z because Postgres stores in UTC
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(str) && !str.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(str)) {
+      str = str.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const formatShiftTime = (dateVal) => {
+    const d = parseServerDate(dateVal);
+    if (!d) return '--:--';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatShiftDate = (dateVal) => {
+    const d = parseServerDate(dateVal);
+    if (!d) return '';
+    return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  const calculateDuration = (events, status) => {
+    if (!events || events.length === 0) return null;
+    
+    let totalMs = 0;
+    let lastStart = null;
+    
+    const sorted = [...events].sort((a, b) => {
+      const da = parseServerDate(a.created_at);
+      const db = parseServerDate(b.created_at);
+      return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+    });
+    
+    for (const ev of sorted) {
+      const evTime = parseServerDate(ev.created_at);
+      if (!evTime) continue;
+      
+      if (ev.event_type === 'start' || ev.event_type === 'resume') {
+        lastStart = evTime.getTime();
+      } else if (ev.event_type === 'pause' || ev.event_type === 'stop') {
+        if (lastStart) {
+          totalMs += (evTime.getTime() - lastStart);
+          lastStart = null;
+        }
+      }
+    }
+    
+    if (status === 'working' && lastStart) {
+      totalMs += (Date.now() - lastStart);
+    }
+    
+    if (totalMs <= 0) return null;
+    
+    const totalMins = Math.round(totalMs / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    
+    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${mins}m`;
+  };
+
+  const handleStartFromLog = async (item) => {
     if (activeSession) {
       if (activeSession.quote_id === item.quote_id) {
         showToast(`⚠️ You are currently clocked in on "${item.job_name}".`);
       } else {
-        Alert.alert(
-          'Active Shift Running',
-          'You already have an active shift running on another job. Please clock out of your current shift before switching to this job.'
-        );
+        showToast('⚠️ Active shift running. Clock out of current shift first.');
       }
       return;
     }
 
-    const matchingJob = jobs.find(j => j.id === item.quote_id);
-    if (matchingJob) {
-      setSelectedJob(matchingJob);
-    } else {
-      setSelectedJob({
-        id: item.quote_id,
-        job_name: item.job_name,
-        client_name: item.client_name,
-        is_direct_job: item.is_direct_job
-      });
-    }
+    const matchingJob = jobs.find(j => j.id === item.quote_id) || {
+      id: item.quote_id,
+      job_name: item.job_name,
+      client_name: item.client_name,
+      is_direct_job: item.is_direct_job
+    };
+
+    setSelectedJob(matchingJob);
     setTaskName('');
     setNotes('');
+    
+    // Actually start the shift immediately!
+    await handleStart(matchingJob);
+  };
+
+  const handleSelectJobOnly = (item) => {
+    const matchingJob = jobs.find(j => j.id === item.quote_id) || {
+      id: item.quote_id,
+      job_name: item.job_name,
+      client_name: item.client_name,
+      is_direct_job: item.is_direct_job
+    };
+    setSelectedJob(matchingJob);
+    setTaskName('');
+    setNotes('');
+    if (typeof window !== 'undefined' && window.scrollTo) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    showToast(`⚡ Selected "${item.job_name}" for next shift`);
+    showToast(`⚡ Selected "${item.job_name}" in form`);
   };
 
   const getGPSLocation = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location Permission Denied', 'Location coordinates are required to sign on or off. Please enable location permissions in your settings.');
-        return null;
-      }
-      
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      return {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude
-      };
+      // Race against a short 3s timeout so desktop web or denied permissions never hang or freeze
+      const locationPromise = (async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return null;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        return {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        };
+      })();
+
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3000));
+      const res = await Promise.race([locationPromise, timeoutPromise]);
+      return res || { latitude: null, longitude: null };
     } catch (err) {
-      console.warn('GPS error:', err);
-      // Return null rather than failing entirely, or restrict depending on policy.
-      return null;
+      console.warn('GPS location unavailable, continuing without GPS:', err);
+      return { latitude: null, longitude: null };
     }
   };
 
-  const handleStart = async () => {
-    if (!selectedJob) {
-      Alert.alert('Error', 'Please select a Job Name first.');
+  const handleStart = async (jobOverride = null) => {
+    const job = jobOverride || selectedJob;
+    if (!job) {
+      showToast('⚠️ Please select a Job Name first.');
       return;
     }
     
     setActionLoading(true);
     try {
       const coords = await getGPSLocation();
-      if (!coords) {
-        setActionLoading(false);
-        return; // Stopped due to permission
-      }
       
       const payload = {
-        quote_id: selectedJob.id,
+        quote_id: job.id,
         task_name: taskName,
         notes: notes,
-        latitude: coords.latitude,
-        longitude: coords.longitude
+        latitude: coords?.latitude || null,
+        longitude: coords?.longitude || null
       };
       
       await startTimesheet(payload);
-      showToast(`🚀 Clocked in on "${selectedJob.job_name}"`);
-      await fetchInitialData(selectedJob.id, true);
+      showToast(`🚀 Clocked in on "${job.job_name}"`);
+      if (typeof window !== 'undefined' && window.scrollTo) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      await fetchInitialData(job.id, true);
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || err.message);
+      const errMsg = err.response?.data?.error || err.message || 'Failed to start shift';
+      showToast(`❌ ${errMsg}`);
     } finally {
       setActionLoading(false);
     }
@@ -184,15 +265,11 @@ export default function TimesheetScreen({ route, navigation }) {
     setActionLoading(true);
     try {
       const coords = await getGPSLocation();
-      if (!coords) {
-        setActionLoading(false);
-        return; // Stopped due to permission
-      }
       
       const payload = {
         event_type: eventType,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
+        latitude: coords?.latitude || null,
+        longitude: coords?.longitude || null,
         task_name: taskName,
         notes: notes
       };
@@ -211,62 +288,89 @@ export default function TimesheetScreen({ route, navigation }) {
         await fetchInitialData(null, true);
       }
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || err.message);
+      const errMsg = err.response?.data?.error || err.message || 'Failed to log event';
+      showToast(`❌ ${errMsg}`);
     } finally {
       setActionLoading(false);
     }
   };
 
   const renderLogItem = ({ item }) => {
-    // Format start and stop times
     const startEvent = item.events?.find(e => e.event_type === 'start');
     const stopEvent = item.events?.find(e => e.event_type === 'stop');
-    const dateStr = new Date(item.created_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-    
-    const startTimeStr = startEvent ? new Date(startEvent.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-    const stopTimeStr = stopEvent ? new Date(stopEvent.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : 'Active';
+    const dateStr = formatShiftDate(item.created_at);
+    const startTimeStr = startEvent ? formatShiftTime(startEvent.created_at) : '--:--';
+    const stopTimeStr = stopEvent ? formatShiftTime(stopEvent.created_at) : (item.status === 'working' ? 'In Progress' : 'Paused');
+    const durationStr = calculateDuration(item.events, item.status);
+    const isThisActive = activeSession?.id === item.id;
 
     return (
-      <Card style={styles.logCard}>
+      <Card style={[styles.logCard, isThisActive && styles.activeLogCard]}>
         <View style={styles.logHeader}>
           <Text style={styles.logDate}>{dateStr}</Text>
-          <Text style={[styles.logStatus, styles[`status_${item.status}`]]}>{item.status.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {durationStr ? (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationBadgeText}>⏱️ {durationStr}</Text>
+              </View>
+            ) : null}
+            <Text style={[styles.logStatus, styles[`status_${item.status}`]]}>
+              {item.status.toUpperCase()}
+            </Text>
+          </View>
         </View>
+
         <Text style={styles.logJob}>{item.job_name}</Text>
         <Text style={styles.logClient}>Client: {item.client_name || 'N/A'}</Text>
         
+        <View style={styles.shiftTimesRow}>
+          <Text style={styles.shiftTimeLabel}>Shift Time:</Text>
+          <Text style={styles.shiftTimeVal}>{startTimeStr} → {stopTimeStr}</Text>
+        </View>
+
         {item.task_name ? <Text style={styles.logField}>Task: <Text style={styles.logText}>{item.task_name}</Text></Text> : null}
         {item.notes ? <Text style={styles.logField}>Notes: <Text style={styles.logText}>{item.notes}</Text></Text> : null}
         
-        <View style={styles.eventTimeline}>
-          <Text style={styles.timelineTitle}>Timeline Events:</Text>
-          {item.events?.map((e, idx) => {
-            const time = new Date(e.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-            return (
-              <View key={e.id} style={styles.timelineRow}>
-                <Text style={styles.timelineDot}>•</Text>
-                <Text style={styles.timelineEventText}>
-                  {e.event_type.toUpperCase()} at {time} 
-                  {e.latitude ? ` (Location: ${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)})` : ''}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        {item.events && item.events.length > 0 && (
+          <View style={styles.eventTimeline}>
+            <Text style={styles.timelineTitle}>Timeline Events:</Text>
+            {item.events.map((e) => {
+              const time = formatShiftTime(e.created_at);
+              return (
+                <View key={e.id} style={styles.timelineRow}>
+                  <Text style={styles.timelineDot}>•</Text>
+                  <Text style={styles.timelineEventText}>
+                    {e.event_type.toUpperCase()} at {time}
+                    {e.latitude ? ` (${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)})` : ''}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
-        {/* Action to start another shift on this job */}
-        {activeSession?.quote_id === item.quote_id ? (
+        {/* Card action */}
+        {isThisActive ? (
           <View style={styles.activeShiftIndicator}>
-            <Text style={styles.activeShiftText}>🟢 Active Shift Currently Running</Text>
+            <Text style={styles.activeShiftText}>🟢 This shift is currently active above</Text>
           </View>
         ) : (
-          <TouchableOpacity 
-            style={styles.logCardActionBtn}
-            onPress={() => handleSelectJobFromLog(item)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.logCardActionText}>⏱️ Start New Shift on this Job</Text>
-          </TouchableOpacity>
+          <View style={styles.logCardActionRow}>
+            <TouchableOpacity 
+              style={styles.logCardActionBtn}
+              onPress={() => handleStartFromLog(item)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.logCardActionText}>🚀 Start New Shift on this Job</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.logCardSelectBtn}
+              onPress={() => handleSelectJobOnly(item)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.logCardSelectText}>Select in Form</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </Card>
     );
@@ -778,26 +882,78 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  logCardActionBtn: {
-    marginTop: spacing.sm,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    backgroundColor: '#EFF6FF',
+  durationBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#E2E8F0',
+  },
+  durationBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  activeLogCard: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+  },
+  shiftTimesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    paddingVertical: 2,
+  },
+  shiftTimeLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginRight: 6,
+  },
+  shiftTimeVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  logCardActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  logCardActionBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
   },
   logCardActionText: {
-    color: colors.primary,
+    color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '700',
+  },
+  logCardSelectBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logCardSelectText: {
+    color: colors.text,
+    fontSize: 12,
     fontWeight: '700',
   },
   activeShiftIndicator: {
     marginTop: spacing.sm,
-    paddingVertical: 7,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: '#DCFCE7',
     borderRadius: radius.sm,
