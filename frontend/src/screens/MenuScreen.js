@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import CreateJobModal from '../components/CreateJobModal';
@@ -55,14 +55,7 @@ export default function MenuScreen({ navigation }) {
   };
 
   const handleJobCreated = (newJob) => {
-    Alert.alert(
-      'Job Created',
-      `Job "${newJob.job_name}" created and ready for timesheets!`,
-      [
-        { text: 'Go to Timesheets', onPress: () => navigation.navigate('Timesheet', { preselectedJobId: newJob.id }) },
-        { text: 'OK', style: 'cancel' },
-      ]
-    );
+    navigation.navigate('Timesheet', { preselectedJobId: newJob.id });
   };
 
   return (

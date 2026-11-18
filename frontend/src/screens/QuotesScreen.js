@@ -40,14 +40,6 @@ export default function QuotesScreen({ navigation }) {
 
   const handleJobCreated = (newJob) => {
     fetchQuotes();
-    Alert.alert(
-      'Job Created',
-      `Direct job "${newJob.job_name}" created successfully!`,
-      [
-        { text: 'Go to Timesheets', onPress: () => navigation.navigate('Timesheet', { preselectedJobId: newJob.id }) },
-        { text: 'Stay Here', style: 'cancel' },
-      ]
-    );
   };
 
   const handleDelete = (id, jobName) => {

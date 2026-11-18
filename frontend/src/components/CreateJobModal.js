@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { getClients, createDirectJob } from '../services/api';
 import { Button, Input } from './UI';
@@ -75,16 +74,12 @@ export default function CreateJobModal({ visible, onClose, onJobCreated }) {
 
   const handleSave = async () => {
     if (!jobName.trim()) {
-      const msg = 'Job Name is required.';
-      setErrorMsg(msg);
-      Alert.alert('Required', msg);
+      setErrorMsg('Job Name is required.');
       return;
     }
 
     if (clientMode === 'new' && !newClient.full_name.trim()) {
-      const msg = 'Client full name is required when creating a new client.';
-      setErrorMsg(msg);
-      Alert.alert('Required', msg);
+      setErrorMsg('Client full name is required when creating a new client.');
       return;
     }
 
@@ -110,7 +105,6 @@ export default function CreateJobModal({ visible, onClose, onJobCreated }) {
       }
 
       const createdJob = await createDirectJob(payload);
-      Alert.alert('Success', `Job "${createdJob.job_name}" created and ready for timesheets!`);
       
       resetForm();
       if (onJobCreated) {
@@ -120,7 +114,6 @@ export default function CreateJobModal({ visible, onClose, onJobCreated }) {
     } catch (err) {
       const errorText = err.response?.data?.error || err.message || 'Failed to create job.';
       setErrorMsg(errorText);
-      Alert.alert('Error', errorText);
     } finally {
       setSaving(false);
     }

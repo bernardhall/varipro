@@ -26,9 +26,20 @@ export default function TimesheetScreen({ route, navigation }) {
   // Custom Dropdown modal state
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const toastTimerRef = React.useRef(null);
+
+  const showToast = (msg) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMsg(msg);
+    toastTimerRef.current = setTimeout(() => setToastMsg(''), 3000);
+  };
 
   useEffect(() => {
     fetchInitialData();
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   const fetchInitialData = async () => {
@@ -64,7 +75,7 @@ export default function TimesheetScreen({ route, navigation }) {
         setNotes('');
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to load timesheet details: ' + err.message);
+      console.warn('Failed to load timesheet details:', err);
     } finally {
       setLoading(false);
     }
@@ -73,6 +84,7 @@ export default function TimesheetScreen({ route, navigation }) {
   const handleJobCreated = (newJob) => {
     setJobs(prev => [newJob, ...prev.filter(j => j.id !== newJob.id)]);
     setSelectedJob(newJob);
+    showToast(`⚡ Job "${newJob.job_name}" selected`);
     fetchInitialData();
   };
 
@@ -119,7 +131,7 @@ export default function TimesheetScreen({ route, navigation }) {
       };
       
       await startTimesheet(payload);
-      Alert.alert('Success', 'Clocked in successfully!');
+      showToast('🚀 Clocked in successfully');
       await fetchInitialData();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || err.message);
@@ -149,8 +161,8 @@ export default function TimesheetScreen({ route, navigation }) {
       
       await logTimesheetEvent(activeSession.id, payload);
       
-      const label = eventType === 'pause' ? 'Break started (paused)' : eventType === 'resume' ? 'Work resumed' : 'Clocked out (stopped)';
-      Alert.alert('Success', `${label} successfully logged!`);
+      const label = eventType === 'pause' ? '☕ Break started (paused)' : eventType === 'resume' ? '🛠️ Work resumed' : '🛑 Clocked out (stopped)';
+      showToast(label);
       await fetchInitialData();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || err.message);
@@ -219,6 +231,12 @@ export default function TimesheetScreen({ route, navigation }) {
             <Card style={styles.actionCard}>
               <Text style={styles.sectionTitle}>Timesheet Entry</Text>
               
+              {toastMsg ? (
+                <View style={styles.toastBanner}>
+                  <Text style={styles.toastText}>{toastMsg}</Text>
+                </View>
+              ) : null}
+
               {/* Job Dropdown selector */}
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Job Name *</Text>
@@ -682,5 +700,20 @@ const styles = StyleSheet.create({
   },
   quoteTagText: {
     color: '#4B5563',
+  },
+  toastBanner: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+    borderWidth: 1.5,
+    borderRadius: radius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  toastText: {
+    color: '#065F46',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
