@@ -186,23 +186,6 @@ export default function TimesheetScreen({ route, navigation }) {
     await handleStart(matchingJob);
   };
 
-  const handleSelectJobOnly = (item) => {
-    const matchingJob = jobs.find(j => j.id === item.quote_id) || {
-      id: item.quote_id,
-      job_name: item.job_name,
-      client_name: item.client_name,
-      is_direct_job: item.is_direct_job
-    };
-    setSelectedJob(matchingJob);
-    setTaskName('');
-    setNotes('');
-    if (typeof window !== 'undefined' && window.scrollTo) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    showToast(`⚡ Selected "${item.job_name}" in form`);
-  };
-
   const getGPSLocation = async () => {
     try {
       // Race against a short 3s timeout so desktop web or denied permissions never hang or freeze
@@ -355,22 +338,13 @@ export default function TimesheetScreen({ route, navigation }) {
             <Text style={styles.activeShiftText}>🟢 This shift is currently active above</Text>
           </View>
         ) : (
-          <View style={styles.logCardActionRow}>
-            <TouchableOpacity 
-              style={styles.logCardActionBtn}
-              onPress={() => handleStartFromLog(item)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.logCardActionText}>🚀 Start New Shift on this Job</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.logCardSelectBtn}
-              onPress={() => handleSelectJobOnly(item)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.logCardSelectText}>Select in Form</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.logCardActionBtn}
+            onPress={() => handleStartFromLog(item)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.logCardActionText}>🚀 Start New Shift on this Job</Text>
+          </TouchableOpacity>
         )}
       </Card>
     );
@@ -916,13 +890,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  logCardActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: spacing.md,
-  },
   logCardActionBtn: {
-    flex: 1,
+    marginTop: spacing.md,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: colors.primary,
@@ -934,21 +903,6 @@ const styles = StyleSheet.create({
   logCardActionText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
-  },
-  logCardSelectBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logCardSelectText: {
-    color: colors.text,
-    fontSize: 12,
     fontWeight: '700',
   },
   activeShiftIndicator: {
