@@ -209,8 +209,12 @@ export default function TimesheetScreen({ route, navigation }) {
   };
 
   const handleStart = async (jobOverride = null) => {
-    const job = jobOverride || selectedJob;
-    if (!job) {
+    // Only use jobOverride if it's an explicit job object (not a synthetic click event)
+    const validOverride = (jobOverride && typeof jobOverride === 'object' && (jobOverride.id || jobOverride.quote_id)) ? jobOverride : null;
+    const job = validOverride || selectedJob || selectedJobRef.current;
+    const targetQuoteId = job?.id || job?.quote_id;
+
+    if (!job || !targetQuoteId) {
       showToast('⚠️ Please select a Job Name first.');
       return;
     }
@@ -220,7 +224,7 @@ export default function TimesheetScreen({ route, navigation }) {
       const coords = await getGPSLocation();
       
       const payload = {
-        quote_id: job.id,
+        quote_id: targetQuoteId,
         task_name: taskName,
         notes: notes,
         latitude: coords?.latitude || null,
@@ -228,12 +232,12 @@ export default function TimesheetScreen({ route, navigation }) {
       };
       
       await startTimesheet(payload);
-      showToast(`🚀 Clocked in on "${job.job_name}"`);
+      showToast(`🚀 Clocked in on "${job.job_name || 'Job'}"`);
       if (typeof window !== 'undefined' && window.scrollTo) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      await fetchInitialData(job.id, true);
+      await fetchInitialData(targetQuoteId, true);
     } catch (err) {
       const errMsg = err.response?.data?.error || err.message || 'Failed to start shift';
       showToast(`❌ ${errMsg}`);
@@ -446,7 +450,7 @@ export default function TimesheetScreen({ route, navigation }) {
                   // Clock in button
                   <Button 
                     title={selectedJob ? "🚀 Start Shift" : "🚀 Start Work"} 
-                    onPress={handleStart} 
+                    onPress={() => handleStart()} 
                     loading={actionLoading}
                     variant="primary" 
                     style={{ flex: 1 }}
