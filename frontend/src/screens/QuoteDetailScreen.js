@@ -82,8 +82,8 @@ export default function QuoteDetailScreen({ route, navigation }) {
         )}
       </Card>
 
-      {/* Direct Job Timesheet CTA */}
-      {quote.is_direct_job ? (
+      {/* Job / Accepted Quote Timesheet CTA */}
+      {(quote.is_direct_job || quote.status === 'accepted') ? (
         <TouchableOpacity
           style={styles.timeBtn}
           onPress={() => navigation.navigate('Timesheet', { preselectedJobId: quote.id })}

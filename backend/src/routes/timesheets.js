@@ -13,7 +13,7 @@ router.get('/accepted-quotes', async (req, res) => {
       SELECT q.id, q.job_name, q.is_direct_job, q.summary_explanation, c.full_name as client_name, c.site_address 
       FROM quotes q
       LEFT JOIN clients c ON q.client_id = c.id
-      WHERE q.account_id = $1 AND q.status = 'accepted'
+      WHERE q.account_id = $1 AND (q.is_direct_job = 1 OR q.status = 'accepted')
       ORDER BY q.updated_at DESC
     `;
     const result = await query(sql, [req.user.account_id]);

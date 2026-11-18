@@ -28,11 +28,17 @@ export default function TimesheetScreen({ route, navigation }) {
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const toastTimerRef = React.useRef(null);
+  const flatListRef = React.useRef(null);
+  const selectedJobRef = React.useRef(selectedJob);
+
+  useEffect(() => {
+    selectedJobRef.current = selectedJob;
+  }, [selectedJob]);
 
   const showToast = (msg) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMsg(msg);
-    toastTimerRef.current = setTimeout(() => setToastMsg(''), 3000);
+    toastTimerRef.current = setTimeout(() => setToastMsg(''), 3500);
   };
 
   useEffect(() => {
@@ -42,9 +48,9 @@ export default function TimesheetScreen({ route, navigation }) {
     };
   }, []);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (preserveJobId = null, silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       
       // Fetch accepted quotes for dropdown
       const acceptedQuotes = await getAcceptedQuotes();
@@ -65,11 +71,13 @@ export default function TimesheetScreen({ route, navigation }) {
         setNotes(active.notes || '');
       } else {
         setActiveSession(null);
-        if (route?.params?.preselectedJobId) {
-          const pre = acceptedQuotes.find(j => j.id === route.params.preselectedJobId);
-          if (pre) setSelectedJob(pre);
-        } else {
-          setSelectedJob(null);
+        // Retain the job that was just worked on, or preselected, or existing selection
+        const targetJobId = preserveJobId || selectedJobRef.current?.id || route?.params?.preselectedJobId;
+        if (targetJobId) {
+          const matching = acceptedQuotes.find(j => j.id === targetJobId);
+          if (matching) {
+            setSelectedJob(matching);
+          }
         }
         setTaskName('');
         setNotes('');
@@ -77,7 +85,7 @@ export default function TimesheetScreen({ route, navigation }) {
     } catch (err) {
       console.warn('Failed to load timesheet details:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -85,7 +93,37 @@ export default function TimesheetScreen({ route, navigation }) {
     setJobs(prev => [newJob, ...prev.filter(j => j.id !== newJob.id)]);
     setSelectedJob(newJob);
     showToast(`⚡ Job "${newJob.job_name}" selected`);
-    fetchInitialData();
+    fetchInitialData(newJob.id, true);
+  };
+
+  const handleSelectJobFromLog = (item) => {
+    if (activeSession) {
+      if (activeSession.quote_id === item.quote_id) {
+        showToast(`⚠️ You are currently clocked in on "${item.job_name}".`);
+      } else {
+        Alert.alert(
+          'Active Shift Running',
+          'You already have an active shift running on another job. Please clock out of your current shift before switching to this job.'
+        );
+      }
+      return;
+    }
+
+    const matchingJob = jobs.find(j => j.id === item.quote_id);
+    if (matchingJob) {
+      setSelectedJob(matchingJob);
+    } else {
+      setSelectedJob({
+        id: item.quote_id,
+        job_name: item.job_name,
+        client_name: item.client_name,
+        is_direct_job: item.is_direct_job
+      });
+    }
+    setTaskName('');
+    setNotes('');
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    showToast(`⚡ Selected "${item.job_name}" for next shift`);
   };
 
   const getGPSLocation = async () => {
@@ -131,8 +169,8 @@ export default function TimesheetScreen({ route, navigation }) {
       };
       
       await startTimesheet(payload);
-      showToast('🚀 Clocked in successfully');
-      await fetchInitialData();
+      showToast(`🚀 Clocked in on "${selectedJob.job_name}"`);
+      await fetchInitialData(selectedJob.id, true);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || err.message);
     } finally {
@@ -159,11 +197,19 @@ export default function TimesheetScreen({ route, navigation }) {
         notes: notes
       };
       
+      const currentJobId = activeSession.quote_id || selectedJob?.id;
+      const currentJobName = selectedJob?.job_name || 'job';
+
       await logTimesheetEvent(activeSession.id, payload);
       
-      const label = eventType === 'pause' ? '☕ Break started (paused)' : eventType === 'resume' ? '🛠️ Work resumed' : '🛑 Clocked out (stopped)';
-      showToast(label);
-      await fetchInitialData();
+      if (eventType === 'stop') {
+        showToast(`🛑 Clocked out. Ready for next shift on "${currentJobName}"`);
+        await fetchInitialData(currentJobId, true);
+      } else {
+        const label = eventType === 'pause' ? '☕ Break started (paused)' : '🛠️ Work resumed';
+        showToast(label);
+        await fetchInitialData(null, true);
+      }
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || err.message);
     } finally {
@@ -207,6 +253,21 @@ export default function TimesheetScreen({ route, navigation }) {
             );
           })}
         </View>
+
+        {/* Action to start another shift on this job */}
+        {activeSession?.quote_id === item.quote_id ? (
+          <View style={styles.activeShiftIndicator}>
+            <Text style={styles.activeShiftText}>🟢 Active Shift Currently Running</Text>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.logCardActionBtn}
+            onPress={() => handleSelectJobFromLog(item)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.logCardActionText}>⏱️ Start New Shift on this Job</Text>
+          </TouchableOpacity>
+        )}
       </Card>
     );
   };
@@ -223,6 +284,7 @@ export default function TimesheetScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <FlatList
+        ref={flatListRef}
         data={logs}
         keyExtractor={item => item.id}
         renderItem={renderLogItem}
@@ -305,7 +367,7 @@ export default function TimesheetScreen({ route, navigation }) {
                 {!activeSession ? (
                   // Clock in button
                   <Button 
-                    title="🚀 Start Work" 
+                    title={selectedJob ? "🚀 Start Shift" : "🚀 Start Work"} 
                     onPress={handleStart} 
                     loading={actionLoading}
                     variant="primary" 
@@ -335,7 +397,7 @@ export default function TimesheetScreen({ route, navigation }) {
                     
                     {/* Stop action */}
                     <Button 
-                      title="🛑 Stop (End Day)" 
+                      title="🛑 Clock Out (End Shift)" 
                       onPress={() => handleEvent('stop')} 
                       loading={actionLoading}
                       variant="danger" 
@@ -714,6 +776,38 @@ const styles = StyleSheet.create({
   toastText: {
     color: '#065F46',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  logCardActionBtn: {
+    marginTop: spacing.sm,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  logCardActionText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  activeShiftIndicator: {
+    marginTop: spacing.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    backgroundColor: '#DCFCE7',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    alignItems: 'center',
+  },
+  activeShiftText: {
+    color: '#15803D',
+    fontSize: 12,
     fontWeight: '700',
   },
 });
