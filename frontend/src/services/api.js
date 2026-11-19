@@ -120,5 +120,6 @@ export const getAcceptedQuotes = () => api.get('/timesheets/accepted-quotes').th
 export const getTimesheets = () => api.get('/timesheets').then(r => r.data);
 export const startTimesheet = (payload) => api.post('/timesheets/start', payload).then(r => r.data);
 export const logTimesheetEvent = (timesheetId, payload) => api.post(`/timesheets/${timesheetId}/event`, payload).then(r => r.data);
+export const updateTimesheet = (timesheetId, payload) => api.patch(`/timesheets/${timesheetId}`, payload).then(r => r.data);
 
 export default api;

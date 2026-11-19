@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { 
-  getAcceptedQuotes, getTimesheets, startTimesheet, logTimesheetEvent 
+  getAcceptedQuotes, getTimesheets, startTimesheet, logTimesheetEvent, updateTimesheet 
 } from '../services/api';
 import { Card, Button, Input } from '../components/UI';
 import CreateJobModal from '../components/CreateJobModal';
@@ -30,6 +30,7 @@ export default function TimesheetScreen({ route, navigation }) {
   const toastTimerRef = React.useRef(null);
   const flatListRef = React.useRef(null);
   const selectedJobRef = React.useRef(selectedJob);
+  const lastSavedRef = React.useRef({ taskName: '', notes: '' });
 
   useEffect(() => {
     selectedJobRef.current = selectedJob;
@@ -69,6 +70,7 @@ export default function TimesheetScreen({ route, navigation }) {
         if (matchingJob) setSelectedJob(matchingJob);
         setTaskName(active.task_name || '');
         setNotes(active.notes || '');
+        lastSavedRef.current = { taskName: (active.task_name || '').trim(), notes: (active.notes || '').trim() };
       } else {
         setActiveSession(null);
         // Retain the job that was just worked on, or preselected, or existing selection
@@ -81,6 +83,7 @@ export default function TimesheetScreen({ route, navigation }) {
         }
         setTaskName('');
         setNotes('');
+        lastSavedRef.current = { taskName: '', notes: '' };
       }
     } catch (err) {
       console.warn('Failed to load timesheet details:', err);
@@ -232,6 +235,7 @@ export default function TimesheetScreen({ route, navigation }) {
       };
       
       await startTimesheet(payload);
+      lastSavedRef.current = { taskName: (taskName || '').trim(), notes: (notes || '').trim() };
       showToast(`🚀 Clocked in on "${job.job_name || 'Job'}"`);
       if (typeof window !== 'undefined' && window.scrollTo) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -267,9 +271,11 @@ export default function TimesheetScreen({ route, navigation }) {
       await logTimesheetEvent(activeSession.id, payload);
       
       if (eventType === 'stop') {
+        lastSavedRef.current = { taskName: '', notes: '' };
         showToast(`🛑 Clocked out. Ready for next shift on "${currentJobName}"`);
         await fetchInitialData(currentJobId, true);
       } else {
+        lastSavedRef.current = { taskName: (taskName || '').trim(), notes: (notes || '').trim() };
         const label = eventType === 'pause' ? '☕ Break started (paused)' : '🛠️ Work resumed';
         showToast(label);
         await fetchInitialData(null, true);
@@ -279,6 +285,31 @@ export default function TimesheetScreen({ route, navigation }) {
       showToast(`❌ ${errMsg}`);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleAutoSave = async () => {
+    if (!activeSession) return;
+    const currentTask = (taskName || '').trim();
+    const currentNotes = (notes || '').trim();
+    
+    // Check if anything actually changed compared to last saved
+    if (currentTask === (lastSavedRef.current.taskName || '') && currentNotes === (lastSavedRef.current.notes || '')) {
+      return;
+    }
+
+    try {
+      await updateTimesheet(activeSession.id, {
+        task_name: currentTask,
+        notes: currentNotes
+      });
+      lastSavedRef.current = { taskName: currentTask, notes: currentNotes };
+      showToast('💾 Auto-saved task & notes');
+      setActiveSession(prev => prev ? { ...prev, task_name: currentTask, notes: currentNotes } : null);
+      setLogs(prev => prev.map(item => item.id === activeSession.id ? { ...item, task_name: currentTask, notes: currentNotes } : item));
+    } catch (err) {
+      console.warn('Auto-save error:', err);
+      showToast('⚠️ Could not auto-save changes');
     }
   };
 
@@ -414,21 +445,29 @@ export default function TimesheetScreen({ route, navigation }) {
               />
 
               {/* Task name text input */}
-              <Text style={styles.label}>Task</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Task</Text>
+                {activeSession && <Text style={styles.autoSaveHint}>Auto-saves on blur</Text>}
+              </View>
               <TextInput 
                 style={styles.input} 
                 value={taskName} 
                 onChangeText={setTaskName} 
+                onBlur={handleAutoSave}
                 placeholder="What task are you working on?"
                 placeholderTextColor={colors.textSecondary}
               />
 
               {/* Notes text input */}
-              <Text style={styles.label}>Notes</Text>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Notes</Text>
+                {activeSession && <Text style={styles.autoSaveHint}>Auto-saves on blur</Text>}
+              </View>
               <TextInput 
                 style={[styles.input, { height: 60 }]} 
                 value={notes} 
                 onChangeText={setNotes} 
+                onBlur={handleAutoSave}
                 placeholder="Optional notes..."
                 placeholderTextColor={colors.textSecondary}
                 multiline
@@ -803,6 +842,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.primary,
     fontWeight: '700',
+  },
+  autoSaveHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   modalHeaderRow: {
     flexDirection: 'row',

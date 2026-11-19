@@ -146,4 +146,36 @@ router.post('/:id/event', async (req, res) => {
   }
 });
 
+// PATCH /timesheets/:id - Update task_name and/or notes on a timesheet entry
+router.patch('/:id', async (req, res) => {
+  try {
+    const { task_name, notes } = req.body;
+    const timesheetId = req.params.id;
+
+    // Verify timesheet exists and belongs to user
+    const entryRes = await query(
+      'SELECT id, status, task_name, notes FROM timesheet_entries WHERE id = $1 AND user_id = $2',
+      [timesheetId, req.user.user_id]
+    );
+    const entry = entryRes.rows[0];
+    if (!entry) return res.status(404).json({ error: 'Timesheet entry not found' });
+
+    const updatedTask = task_name !== undefined ? (task_name ? task_name.trim() : null) : entry.task_name;
+    const updatedNotes = notes !== undefined ? (notes ? notes.trim() : null) : entry.notes;
+
+    await query(
+      `UPDATE timesheet_entries 
+       SET task_name = $1, 
+           notes = $2, 
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $3`,
+      [updatedTask, updatedNotes, timesheetId]
+    );
+
+    res.json({ id: timesheetId, task_name: updatedTask, notes: updatedNotes, status: entry.status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
